@@ -96,14 +96,41 @@ A powerful Chrome extension for managing cookies and localStorage on the current
 
 ```bash
 # 克隆项目
-git clone https://github.com/username/chrome-cookie-manager.git
+git clone https://github.com/dyyz1993/chrome-cookie-manager.git
 cd chrome-cookie-manager/server
 
-# 启动服务
+# 启动服务（使用GitHub Container Registry镜像）
 docker-compose up -d
 
 # 验证服务
 curl http://localhost:5000/health
+```
+
+#### 使用GitHub Container Registry | Using GitHub Container Registry
+
+我们使用GitHub Container Registry (GHCR)托管Docker镜像，提供以下优势：
+
+- 与代码仓库紧密集成
+- 自动构建和更新
+- 版本标签与代码版本同步
+- 免费的私有和公共镜像仓库
+
+镜像地址 | Image URL:
+```
+ghcr.io/dyyz1993/chrome-cookie-manager/server:latest
+```
+
+#### 拉取特定版本镜像 | Pulling Specific Version Images
+
+```bash
+# 拉取最新版本
+docker pull ghcr.io/dyyz1993/chrome-cookie-manager/server:latest
+
+# 拉取特定版本
+docker pull ghcr.io/dyyz1993/chrome-cookie-manager/server:v1.2.0
+
+# 拉取主分支版本
+docker pull ghcr.io/dyyz1993/chrome-cookie-manager/server:master
 ```
 
 #### Docker配置说明 | Docker Configuration

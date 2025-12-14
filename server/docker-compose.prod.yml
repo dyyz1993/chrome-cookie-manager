@@ -1,8 +1,12 @@
 version: '3.8'
 
+# 使用GitHub Container Registry镜像的生产环境配置
+# 使用前请确保已通过GitHub登录认证:
+# docker login ghcr.io -u your-username -p your-token
 services:
   cookie-manager-server:
-    image: dyyz1993/chrome-cookie-manager-server:latest
+    # GitHub Container Registry镜像
+    image: ghcr.io/dyyz1993/chrome-cookie-manager/server:latest
     container_name: cookie-manager-server
     ports:
       - "5000:5000"
