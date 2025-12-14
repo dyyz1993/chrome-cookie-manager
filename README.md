@@ -1,63 +1,70 @@
-# Chrome Cookie Manager
+# Chrome Cookie Manager | Chrome Cookie 管理器
 
-一个功能强大的Chrome插件，用于管理当前页面的Cookie，支持读取、写入和复制功能。现已升级为现代化的三标签页界面。
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chrome.google.com/webstore)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/release/username/chrome-cookie-manager.svg)](https://github.com/username/chrome-cookie-manager/releases)
 
-## 🎨 界面重构 (v1.1)
+一个功能强大的Chrome扩展，用于管理当前页面的Cookie和LocalStorage，支持读取、写入、复制和云端同步功能。
 
-### 新的四标签页设计
-- **Cookie标签页**: 获取和查看Cookie
-- **Storage标签页**: 获取和查看LocalStorage数据 (新增)
-- **设置标签页**: 添加和修改Cookie  
-- **配置标签页**: 扩展设置和权限管理
+A powerful Chrome extension for managing cookies and localStorage on the current page, supporting read, write, copy, and cloud sync features.
 
-### 视觉改进
-- 现代化的渐变色设计
-- 更好的按钮交互效果
-- 优化的布局和间距
-- 改进的权限提示界面
+## 🌟 主要特点 | Key Features
 
-## 功能特点
-
-- 🍪 **读取所有Cookie** - 获取当前页面的所有Cookie
-- 🎯 **读取指定Cookie** - 根据名称获取特定的Cookie
-- 💾 **LocalStorage管理** - 获取和查看网站的LocalStorage数据 (新增)
-- 🔍 **智能过滤** - 支持按值长度过滤LocalStorage，避免显示过长数据
-- ✏️ **写入Cookie** - 设置新的Cookie到当前页面
-- 📋 **一键复制** - 将Cookie或Storage数据复制到剪贴板
-- 🔐 **动态权限申请** - 自动申请访问页面域名的权限
+- 🍪 **Cookie管理** - 读取、写入、复制当前页面的所有Cookie
+- 💾 **LocalStorage管理** - 查看、过滤、复制网站的LocalStorage数据
+- ☁️ **云端同步** - 支持跨设备数据同步（可选）
+- � **数据加密** - 客户端加密，保护隐私安全
 - 🎨 **现代化界面** - 四标签页设计，简洁直观
-- ⚙️ **配置管理** - 清除权限、刷新扩展等管理功能
+- ⚙️ **智能配置** - 按域名独立配置同步策略
+- 📱 **响应式设计** - 适配不同屏幕尺寸
 
-## 安装方法
+## 📸 截图 | Screenshots
+
+![Cookie Manager Interface](docs/images/interface-screenshot.png)
+
+## 🚀 安装 | Installation
+
+### 方式1：从Chrome Web Store安装（推荐）
+### Method 1: Install from Chrome Web Store (Recommended)
+
+1. 访问 [Chrome Web Store](https://chrome.google.com/webstore)
+2. 搜索 "Cookie Manager"
+3. 点击 "添加到Chrome"
+
+### 方式2：开发者模式安装
+### Method 2: Developer Mode Installation
 
 1. 下载或克隆此项目到本地
+   ```bash
+   git clone https://github.com/username/chrome-cookie-manager.git
+   cd chrome-cookie-manager
+   ```
 2. 打开Chrome浏览器，进入 `chrome://extensions/`
 3. 开启右上角的"开发者模式"
 4. 点击"加载已解压的扩展程序"
 5. 选择项目文件夹
-6. 插件安装完成，可以在工具栏看到Cookie Manager图标
 
-## 使用方法
+## 📖 使用指南 | User Guide
 
-### 读取Cookie (Cookie标签页)
+### Cookie管理 | Cookie Management
 
 1. 打开要查看Cookie的网页
 2. 点击工具栏中的Cookie Manager图标
 3. 在"Cookie"标签页中：
-   - 点击"获取所有Cookie"按钮获取当前页面的所有Cookie
-   - 或者点击"获取指定Cookie"按钮，输入Cookie名称获取特定Cookie
+   - 点击"获取所有Cookie"获取当前页面的所有Cookie
+   - 或点击"获取指定Cookie"输入Cookie名称获取特定Cookie
    - 点击"复制Cookie"将Cookie复制到剪贴板
 
-### 查看LocalStorage (Storage标签页)
+### LocalStorage管理 | LocalStorage Management
 
 1. 切换到"Storage"标签页
 2. 可以进行以下操作：
-   - 点击"获取所有Storage"按钮获取当前页面的所有LocalStorage数据
-   - 点击"获取指定项"按钮，输入键名获取特定Storage项
+   - 点击"获取所有Storage"获取当前页面的所有LocalStorage数据
+   - 点击"获取指定项"输入键名获取特定Storage项
    - 设置"最大值长度"来过滤过长的数据（默认500字符）
    - 点击"复制Storage"将数据复制到剪贴板
 
-### 设置Cookie (设置标签页)
+### 设置Cookie | Setting Cookies
 
 1. 切换到"设置"标签页
 2. 填写Cookie信息：
@@ -68,87 +75,108 @@
    - **过期时间** - 可选，格式如：2025-12-31T23:59:59Z
 3. 点击"设置Cookie"按钮完成设置
 
-### 扩展配置 (配置标签页)
+### 云端同步 | Cloud Sync
 
-1. 切换到"配置"标签页
-2. 可以进行以下操作：
-   - 查看权限管理说明
-   - 查看安全使用提示和LocalStorage说明
-   - 清除所有已授权的权限
-   - 刷新扩展状态
+1. 切换到"同步"标签页
+2. 配置服务器URL和加密密钥
+3. 为每个域名单独配置同步策略
+4. 支持自动同步和手动同步
 
-### 复制Cookie
-
-1. 获取Cookie后，点击"复制Cookie"按钮
-2. Cookie会自动拼接成一行格式（如：`name1=value1; name2=value2;`）
-3. 可以直接粘贴到需要的地方
-
-## 权限说明
-
-插件需要以下权限：
-
-- `activeTab` - 获取当前活动标签页信息
-- `cookies` - 读取和写入Cookie
-- `<all_urls>` - 访问所有网站的Cookie（通过动态权限申请实现）
-
-## 技术实现
+## 🔧 技术实现 | Technical Implementation
 
 - **Manifest V3** - 使用最新的Chrome扩展API
-- **现代化UI** - 基于现代设计原则的三标签页界面
+- **现代化UI** - 基于现代设计原则的四标签页界面
 - **动态权限申请** - 根据当前页面域名动态申请权限
-- **响应式设计** - 适配不同屏幕尺寸
-- **错误处理** - 完善的错误提示和状态反馈
-- **智能域名匹配** - 自动获取当前域名、根域名和子域名的Cookie
+- **客户端加密** - 使用AES加密保护数据安全
+- **版本管理** - 智能版本控制和冲突解决
 
-## 文件结构
+## 🌐 服务器部署 | Server Deployment
 
-```
-chrome-cookie-manager/
-├── manifest.json          # 插件配置文件
-├── popup.html             # 弹窗界面
-├── popup.js               # 弹窗逻辑
-├── background.js          # 后台脚本
-├── icons/                 # 图标文件夹
-│   ├── icon16.png
-│   ├── icon32.png
-│   ├── icon48.png
-│   └── icon128.png
-├── icon.svg               # SVG图标源文件
-├── create_icons.py        # 图标生成脚本
-├── test.html              # 基本功能测试页面
-├── ui_test.html           # UI界面测试页面 (新增)
-└── README.md              # 说明文档
+### Docker部署（推荐）| Docker Deployment (Recommended)
+
+```bash
+# 克隆项目
+git clone https://github.com/username/chrome-cookie-manager.git
+cd chrome-cookie-manager/server
+
+# 启动服务
+docker-compose up -d
+
+# 验证服务
+curl http://localhost:5000/health
 ```
 
-## 开发说明
+### 直接部署 | Direct Deployment
 
-如需修改或扩展功能，可以编辑以下文件：
+```bash
+# 安装依赖
+cd server
+pip install -r requirements.txt
 
-- `popup.html` - 修改界面布局 (已重构为三标签页)
-- `popup.js` - 添加或修改前端逻辑 (已重构支持标签页切换)
-- `background.js` - 修改后台处理逻辑
-- `manifest.json` - 更新插件配置和权限
+# 启动服务
+python app.py
+```
 
-### 测试
+## 📚 API文档 | API Documentation
 
-- 打开 `test.html` 文件进行基本功能测试
-- 打开 `ui_test.html` 文件进行UI界面测试
+### 健康检查 | Health Check
+```http
+GET /health
+```
 
-## 版本历史
+### Pass管理 | Pass Management
+```http
+POST /api/pass/create
+GET /api/pass/{pass}/check
+```
 
-- **v1.1**: UI重构版本
-  - 全新的三标签页界面设计
-  - 现代化的视觉效果
-  - 改进的用户体验
-  - 新增配置管理功能
-- **v1.0**: 初始版本，支持基本的Cookie读取和写入功能
+### 数据存储 | Data Storage
+```http
+POST /api/data/{pass}/{domain}
+GET /api/data/{pass}/{domain}
+DELETE /api/data/{pass}/{domain}
+```
 
-## 注意事项
+详细API文档请参考：[API Documentation](docs/api.md)
 
-- 插件只能在网页环境下使用，不能在Chrome内部页面（如新标签页）使用
-- 某些网站可能设置了HttpOnly或Secure标志，这些Cookie可能无法读取或修改
-- 权限申请需要用户确认，如果拒绝则无法访问对应域名的Cookie
+## 🤝 贡献 | Contributing
 
-## 许可证
+欢迎贡献代码！请遵循以下步骤：
 
-MIT License
+1. Fork 此仓库
+2. 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开一个 Pull Request
+
+Welcome to contribute! Please follow these steps:
+
+1. Fork this repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 许可证 | License
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 致谢 | Acknowledgments
+
+- 感谢所有贡献者的支持
+- 感谢Chrome扩展开发社区
+- UI设计灵感来源于现代Web应用
+
+## 📞 联系方式 | Contact
+
+- 项目主页：[https://github.com/username/chrome-cookie-manager](https://github.com/username/chrome-cookie-manager)
+- 问题反馈：[Issues](https://github.com/username/chrome-cookie-manager/issues)
+- 功能建议：[Discussions](https://github.com/username/chrome-cookie-manager/discussions)
+
+---
+
+## 🌍 语言 | Language
+
+[English](README_EN.md) | [简体中文](README.md)

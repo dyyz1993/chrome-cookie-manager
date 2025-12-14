@@ -1,0 +1,61 @@
+name: Build and Release Chrome Extension
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Get version
+      id: version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        else
+          VERSION=$(grep '"version"' manifest.json | cut -d'"' -f4)
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extension version: $VERSION"
+        
+    - name: Create extension directory
+      run: |
+        mkdir -p extension
+        cp -r icons manifest.json popup.html popup.js background.js sync-manager.js extension/
+        
+    - name: Create zip package
+      run: |
+        cd extension
+        zip -r ../chrome-cookie-manager-v${{ steps.version.outputs.version }}.zip .
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chrome-extension-v${{ steps.version.outputs.version }}
+        path: chrome-cookie-manager-v${{ steps.version.outputs.version }}.zip
+        retention-days: 30
+        
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: chrome-cookie-manager-v${{ steps.version.outputs.version }}.zip
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
