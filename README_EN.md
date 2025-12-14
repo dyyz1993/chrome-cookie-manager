@@ -106,12 +106,75 @@ docker-compose up -d
 curl http://localhost:5000/health
 ```
 
+#### Docker Configuration | Docker配置说明
+
+Default Configuration Parameters | 默认配置参数:
+
+- **FLASK_ENV**: `production` - Flask运行环境
+- **DATABASE_PATH**: `/app/data/database.db` - 数据库文件路径
+- **MAX_DATA_SIZE**: `1048576` (1MB) - 单个数据最大大小限制
+- **ADMIN_PASSWORD**: `secure123` - 管理员密码（生产环境请修改）
+- **MAX_VERSIONS**: `10` - 数据最大版本数
+
+#### Custom Configuration | 自定义配置
+
+Create `.env` file to customize configuration:
+
+```bash
+# Create environment variables file
+cat > .env << EOF
+FLASK_ENV=production
+DATABASE_PATH=/app/data/database.db
+MAX_DATA_SIZE=1048576
+ADMIN_PASSWORD=your_secure_password
+MAX_VERSIONS=10
+EOF
+
+# Start with custom configuration
+docker-compose --env-file .env up -d
+```
+
+#### Using Nginx Reverse Proxy | 使用Nginx反向代理
+
+Default configuration includes Nginx reverse proxy with HTTPS support:
+
+```bash
+# Start full service stack (including Nginx)
+docker-compose --profile full up -d
+
+# Start only application service
+docker-compose up -d cookie-manager-server
+```
+
 ### Direct Deployment | 直接部署
 
 ```bash
 # Install dependencies
 cd server
 pip install -r requirements.txt
+
+# Start service
+python app.py
+```
+
+#### Environment Variables | 环境变量配置
+
+For direct deployment, configure via environment variables:
+
+```bash
+# Linux/macOS
+export FLASK_ENV=production
+export DATABASE_PATH=./data/database.db
+export MAX_DATA_SIZE=1048576
+export ADMIN_PASSWORD=your_secure_password
+export MAX_VERSIONS=10
+
+# Windows
+set FLASK_ENV=production
+set DATABASE_PATH=./data/database.db
+set MAX_DATA_SIZE=1048576
+set ADMIN_PASSWORD=your_secure_password
+set MAX_VERSIONS=10
 
 # Start service
 python app.py

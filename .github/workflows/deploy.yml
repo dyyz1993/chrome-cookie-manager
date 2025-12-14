@@ -6,6 +6,8 @@ on:
     paths:
       - 'server/**'
   workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
   deploy:
@@ -28,10 +30,13 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: username/chrome-cookie-manager-server
+        images: dyyz1993/chrome-cookie-manager-server
         tags: |
           type=ref,event=branch
           type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
           
