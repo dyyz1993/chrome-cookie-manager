@@ -6,7 +6,7 @@ version: '3.8'
 services:
   cookie-manager-server:
     # GitHub Container Registry镜像
-    image: ghcr.io/dyyz1993/chrome-cookie-manager-server:latest
+    image: ghcr.io/dyyz1993/chrome-cookie-manager:latest
     container_name: cookie-manager-server
     ports:
       - "5000:5000"
