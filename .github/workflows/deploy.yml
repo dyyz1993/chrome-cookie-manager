@@ -9,9 +9,16 @@ on:
   release:
     types: [published]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     
     steps:
     - name: Checkout code
@@ -54,6 +61,9 @@ jobs:
   deploy-docs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      packages: write
     
     steps:
     - name: Checkout code
