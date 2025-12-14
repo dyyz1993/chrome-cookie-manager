@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Manager 管理后台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-1px);
+        }
+
+        .security-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #495057;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: border-color 0.2s;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .pass-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .pass-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .pass-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.1);
+        }
+
+        .pass-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .pass-id {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 14px;
+            background: #e9ecef;
+            padding: 5px 10px;
+            border-radius: 4px;
+            color: #495057;
+        }
+
+        .pass-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .domain-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .domain-tag {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.1);
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .pass-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="security-info">
+                🔒 安全登录 | IP保护已启用
+            </div>
+            <button class="logout-btn" onclick="logout()">🚪 登出</button>
+            <h1>🍪 Cookie Manager 管理后台</h1>
+            <p>管理所有Pass和存储的数据</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalPasses">-</div>
+                <div class="stat-label">总Pass数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalDomains">-</div>
+                <div class="stat-label">总域名数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalSize">-</div>
+                <div class="stat-label">总数据大小</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="serverUptime">-</div>
+                <div class="stat-label">服务器状态</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <div class="section-title">Pass 管理</div>
+                
+                <input type="text" class="search-box" id="searchBox" placeholder="搜索Pass ID或域名...">
+                
+                <div id="errorMessage" class="error" style="display: none;"></div>
+                
+                <div id="loadingMessage" class="loading">
+                    正在加载数据...
+                </div>
+                
+                <div id="passContainer" class="pass-list" style="display: none;">
+                    <!-- Pass列表将在这里动态生成 -->
+                </div>
+                
+                <div id="emptyMessage" class="empty" style="display: none;">
+                    暂无Pass数据
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="loadData()" title="刷新数据">
+        🔄
+    </button>
+
+    <script>
+        let allPasses = [];
+        let serverStats = {};
+
+        // 登出功能
+        async function logout() {
+            if (confirm('确定要登出吗？')) {
+                try {
+                    const response = await fetch('/admin/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        alert('已成功登出');
+                        window.location.href = '/admin';
+                    } else {
+                        alert('登出失败');
+                    }
+                } catch (error) {
+                    console.error('登出错误:', error);
+                    alert('登出请求失败');
+                }
+            }
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+            
+            // 搜索功能
+            document.getElementById('searchBox').addEventListener('input', function(e) {
+                filterPasses(e.target.value);
+            });
+        });
+
+        // 加载数据
+        async function loadData() {
+            try {
+                showLoading();
+                
+                // 加载服务器统计
+                await loadServerStats();
+                
+                // 加载所有Pass数据
+                await loadAllPasses();
+                
+                hideLoading();
+                renderPasses(allPasses);
+                
+            } catch (error) {
+                showError('加载数据失败: ' + error.message);
+            }
+        }
+
+        // 加载服务器统计
+        async function loadServerStats() {
+            const response = await fetch('/api/stats/server');
+            if (!response.ok) throw new Error('获取服务器统计失败');
+            
+            serverStats = await response.json();
+            
+            document.getElementById('totalPasses').textContent = serverStats.total_passes || 0;
+            document.getElementById('totalDomains').textContent = serverStats.total_domains || 0;
+            document.getElementById('totalSize').textContent = formatSize(serverStats.total_size_bytes || 0);
+            document.getElementById('serverUptime').textContent = '运行中';
+        }
+
+        // 加载所有Pass
+        async function loadAllPasses() {
+            const response = await fetch('/api/admin/passes');
+            if (!response.ok) throw new Error('获取Pass列表失败');
+            
+            allPasses = await response.json();
+        }
+
+        // 渲染Pass列表
+        function renderPasses(passes) {
+            const container = document.getElementById('passContainer');
+            
+            if (passes.length === 0) {
+                container.style.display = 'none';
+                document.getElementById('emptyMessage').style.display = 'block';
+                return;
+            }
+            
+            container.style.display = 'block';
+            document.getElementById('emptyMessage').style.display = 'none';
+            
+            container.innerHTML = passes.map(pass => `
+                <div class="pass-item">
+                    <div class="pass-header">
+                        <div class="pass-id">${pass.pass_id}</div>
+                        <div class="pass-stats">
+                            <span>${pass.domain_count || 0} 域名</span>
+                            <span>${formatSize(pass.total_size || 0)}</span>
+                            <span>${formatDate(pass.created_at)}</span>
+                        </div>
+                    </div>
+                    
+                    ${pass.domains && pass.domains.length > 0 ? `
+                        <div class="domain-list">
+                            ${pass.domains.map(domain => `
+                                <span class="domain-tag">${domain.domain}</span>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <div style="margin-top: 15px;">
+                        <a href="/api/stats/${pass.pass_id}" target="_blank" class="btn btn-small">查看详情</a>
+                        <button onclick="deletePass('${pass.pass_id}')" class="btn btn-small btn-danger">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 过滤Pass
+        function filterPasses(query) {
+            if (!query.trim()) {
+                renderPasses(allPasses);
+                return;
+            }
+            
+            const filtered = allPasses.filter(pass => 
+                pass.pass_id.toLowerCase().includes(query.toLowerCase()) ||
+                (pass.domains && pass.domains.some(d => 
+                    d.domain.toLowerCase().includes(query.toLowerCase())
+                ))
+            );
+            
+            renderPasses(filtered);
+        }
+
+        // 删除Pass
+        async function deletePass(passId) {
+            if (!confirm('确定要删除这个Pass吗？这将删除所有相关数据！')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/passes/${passId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || '删除失败');
+                }
+                
+                const result = await response.json();
+                alert(`删除成功！删除了 ${result.deleted_data_entries} 条数据记录`);
+                
+                // 重新加载数据
+                loadData();
+                
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 工具函数
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleString('zh-CN');
+        }
+
+        function showLoading() {
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('passContainer').style.display = 'none';
+            document.getElementById('emptyMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingMessage').style.display = 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('loadingMessage').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

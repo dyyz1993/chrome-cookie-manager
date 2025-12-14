@@ -10,18 +10,20 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             width: 420px;
-            min-height: 600px;
+            height: 600px;
             margin: 0;
             padding: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #333;
+            overflow: hidden;
         }
         
         .container {
             background: white;
             border-radius: 12px;
-            margin: 8px;
-            overflow: hidden;
+            height: calc(600px - 16px);
+            display: flex;
+            flex-direction: column;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         }
         
@@ -30,6 +32,7 @@
             color: white;
             padding: 20px;
             text-align: center;
+            flex-shrink: 0;
         }
         
         .header h2 {
@@ -48,6 +51,7 @@
             display: flex;
             background: #f8f9fa;
             border-bottom: 1px solid #e9ecef;
+            flex-shrink: 0;
         }
         
         .tab {
@@ -73,10 +77,15 @@
             background: white;
         }
         
+        .content-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
         .tab-content {
             display: none;
             padding: 20px;
-            min-height: 400px;
         }
         
         .tab-content.active {
@@ -260,10 +269,418 @@
         
         .version-info {
             text-align: center;
-            padding: 16px;
+            padding: 4px 16px;
             color: #6c757d;
-            font-size: 12px;
+            font-size: 10px;
             border-top: 1px solid #e9ecef;
+            flex-shrink: 1;
+            background: #f8f9fa;
+            line-height: 1.2;
+        }
+        
+        /* 同步页面专用样式 */
+        .config-section {
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 12px 16px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .section-header h3 {
+            margin: 0 0 4px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .config-section .config-item {
+            margin: 0;
+            padding: 16px;
+            border-bottom: 1px solid #f8f9fa;
+        }
+        
+        .config-section .config-item:last-child {
+            border-bottom: none;
+        }
+        
+        .pass-display {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        
+        .pass-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .pass-info label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #6c757d;
+            min-width: 50px;
+        }
+        
+        .pass-value {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+        }
+        
+        .pass-value code {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 10px;
+            color: #495057;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            word-break: break-all;
+        }
+        
+        .btn-small {
+            padding: 4px 6px;
+            font-size: 10px;
+            border: 1px solid #dee2e6;
+            background: white;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-left: 4px;
+            overflow: hidden;
+        }
+        
+        .btn-small:hover {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+        }
+        
+        .btn-random {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .btn-random:hover {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-dot.online {
+            background: #28a745;
+            box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+        }
+        
+        .status-dot.offline {
+            background: #dc3545;
+            box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+        }
+        
+        .status-dot.connecting {
+            background: #ffc107;
+            box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.2);
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 6px 0;
+        }
+        
+        .checkbox-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: #667eea;
+            flex-shrink: 0;
+        }
+        
+        .checkbox-label:hover {
+            background: rgba(102, 126, 234, 0.05);
+            border-radius: 4px;
+            padding: 8px;
+            margin: -2px -8px;
+        }
+        
+        .checkbox-label span {
+            flex: 1;
+        }
+        
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+        
+        .status-row:not(:last-child) {
+            border-bottom: 1px solid #f8f9fa;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-upload {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .btn-download {
+            background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .btn-sync {
+            background: linear-gradient(135deg, #fd7e14 0%, #e83e8c 100%);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .btn-upload:hover, .btn-download:hover, .btn-sync:hover, .btn-secondary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .quick-access {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        
+        .url-display {
+            margin-top: 12px;
+        }
+        
+        .url-display input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 11px;
+            background: white;
+            color: #495057;
+        }
+        
+        .version-list {
+            max-height: 120px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        
+        .version-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .version-item:last-child {
+            border-bottom: none;
+        }
+        
+        .version-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .version-item.selected {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        
+        .version-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+        
+        .version-id {
+            font-family: 'SF Mono', Monaco, monospace;
+            color: #495057;
+            font-weight: 500;
+        }
+        
+        .version-source {
+            font-size: 9px;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-weight: 500;
+        }
+        
+        .version-source.server {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        
+        .version-source.local {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+        
+        .version-meta {
+            color: #6c757d;
+            font-size: 10px;
+        }
+        
+        .version-actions {
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .version-item:hover .version-actions {
+            opacity: 1;
+        }
+        
+        .rollback-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        
+        .rollback-btn:hover {
+            background: #f57c00;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+        }
+        
+        .sync-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .sync-icon {
+            font-size: 14px;
+            width: 16px;
+            text-align: center;
+        }
+        
+        .sync-icon.upload {
+            color: #28a745;
+        }
+        
+        .sync-icon.download {
+            color: #17a2b8;
+        }
+        
+        .sync-icon.sync {
+            color: #fd7e14;
         }
     </style>
 </head>
@@ -275,40 +692,77 @@
         </div>
         
         <div class="tabs">
-            <div class="tab active" data-tab="read">Cookie</div>
+            <div class="tab" data-tab="cookie">Cookie</div>
             <div class="tab" data-tab="storage">Storage</div>
-            <div class="tab" data-tab="write">设置</div>
+            <div class="tab active" data-tab="sync">同步</div>
+            <div class="tab" data-tab="page">页面</div>
             <div class="tab" data-tab="config">配置</div>
         </div>
         
-        <!-- 读取Cookie标签页 -->
-        <div class="tab-content active" id="read-tab">
-            <div class="section-title">读取 Cookie</div>
+        <div class="content-wrapper">
+        <!-- Cookie标签页 -->
+        <div class="tab-content" id="cookie-tab">
+            <div class="section-title">Cookie 管理</div>
             
-            <div class="button-group">
-                <button id="getAllCookies">获取所有Cookie</button>
-                <button id="getSpecificCookie">获取指定Cookie</button>
-            </div>
-            
-            <div class="input-group hidden" id="specificCookieInput">
-                <label for="cookieName">Cookie名称:</label>
-                <input type="text" id="cookieName" placeholder="输入要获取的Cookie名称">
-                <button id="readSpecificCookie" style="margin-top: 12px; width: 100%;">读取指定Cookie</button>
-            </div>
-            
-            <div class="input-group hidden" id="requestPermissionGroup">
-                <div class="permission-notice">
-                    <h4>需要权限</h4>
-                    <p>此扩展需要访问当前网站的Cookie权限才能正常工作。点击下方按钮授权访问。</p>
+            <!-- Cookie获取区域 -->
+            <div class="config-item">
+                <h4>📖 获取Cookie</h4>
+                <div class="button-group">
+                    <button id="getAllCookies">获取所有Cookie</button>
+                    <button id="getSpecificCookie">获取指定Cookie</button>
                 </div>
-                <button id="requestPermissionBtn" class="btn-danger" style="width: 100%;">申请权限并加载Cookie</button>
+                
+                <div class="input-group hidden" id="specificCookieInput">
+                    <label for="cookieName">Cookie名称:</label>
+                    <input type="text" id="cookieName" placeholder="输入要获取的Cookie名称">
+                    <button id="readSpecificCookie" style="margin-top: 12px; width: 100%;">读取指定Cookie</button>
+                </div>
+                
+                <div class="input-group hidden" id="requestPermissionGroup">
+                    <div class="permission-notice">
+                        <h4>需要权限</h4>
+                        <p>此扩展需要访问当前网站的Cookie权限才能正常工作。点击下方按钮授权访问。</p>
+                    </div>
+                    <button id="requestPermissionBtn" class="btn-danger" style="width: 100%;">申请权限并加载Cookie</button>
+                </div>
+                
+                <div class="cookie-display hidden" id="cookieDisplay"></div>
+                
+                <div class="button-group hidden" id="cookieActions">
+                    <button id="copyCookies">复制Cookie</button>
+                    <button id="clearDisplay">清空显示</button>
+                </div>
             </div>
             
-            <div class="cookie-display hidden" id="cookieDisplay"></div>
-            
-            <div class="button-group hidden" id="cookieActions">
-                <button id="copyCookies">复制Cookie</button>
-                <button id="clearDisplay">清空显示</button>
+            <!-- Cookie设置区域 -->
+            <div class="config-item">
+                <h4>✏️ 设置Cookie</h4>
+                <div class="input-group">
+                    <label for="newCookieName">Cookie名称:</label>
+                    <input type="text" id="newCookieName" placeholder="输入Cookie名称">
+                </div>
+                
+                <div class="input-group">
+                    <label for="newCookieValue">Cookie值:</label>
+                    <textarea id="newCookieValue" placeholder="输入Cookie值"></textarea>
+                </div>
+                
+                <div class="input-group">
+                    <label for="newCookieDomain">域名 (可选):</label>
+                    <input type="text" id="newCookieDomain" placeholder="留空使用当前域名">
+                </div>
+                
+                <div class="input-group">
+                    <label for="newCookiePath">路径 (可选):</label>
+                    <input type="text" id="newCookiePath" placeholder="默认为 /">
+                </div>
+                
+                <div class="input-group">
+                    <label for="newCookieExpiration">过期时间 (可选):</label>
+                    <input type="text" id="newCookieExpiration" placeholder="例如: 2025-12-31T23:59:59Z">
+                </div>
+                
+                <button id="setCookie" class="btn-primary" style="width: 100%;">设置Cookie</button>
             </div>
         </div>
         
@@ -327,14 +781,7 @@
                 <button id="readSpecificStorage" style="margin-top: 12px; width: 100%;">读取指定Storage</button>
             </div>
             
-            <div class="config-item">
-                <h4>过滤设置</h4>
-                <div class="input-group">
-                    <label for="maxValueLength">最大值长度 (字符):</label>
-                    <input type="number" id="maxValueLength" value="500" min="1" max="10000" placeholder="500">
-                    <p style="font-size: 12px; color: #6c757d; margin: 4px 0 0 0;">超过此长度的值将被过滤掉</p>
-                </div>
-            </div>
+
             
             <div class="cookie-display hidden" id="storageDisplay"></div>
             
@@ -344,69 +791,192 @@
             </div>
         </div>
         
-        <!-- 设置Cookie标签页 -->
-        <div class="tab-content" id="write-tab">
-            <div class="section-title">设置 Cookie</div>
+        <!-- 页面标签页 -->
+        <div class="tab-content" id="page-tab">
+            <div class="section-title">页面同步配置</div>
             
-            <div class="input-group">
-                <label for="newCookieName">Cookie名称:</label>
-                <input type="text" id="newCookieName" placeholder="输入Cookie名称">
+            <!-- 当前页面信息 -->
+            <div class="config-item">
+                <h4>📄 当前页面</h4>
+                <div class="status-row">
+                    <span>域名:</span>
+                    <span id="currentPageDomain">-</span>
+                </div>
             </div>
             
-            <div class="input-group">
-                <label for="newCookieValue">Cookie值:</label>
-                <textarea id="newCookieValue" placeholder="输入Cookie值"></textarea>
+            <!-- 同步设置 -->
+            <div class="config-item">
+                <h4>🔄 同步选项</h4>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enableCookieSync">
+                        <span class="checkmark"></span>
+                        同步Cookie数据
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enableStorageSync">
+                        <span class="checkmark"></span>
+                        同步LocalStorage数据
+                    </label>
+                </div>
+                <div class="input-group">
+                    <label for="syncInterval">自动同步间隔:</label>
+                    <select id="syncInterval">
+                        <option value="0">关闭自动同步</option>
+                        <option value="1">1分钟</option>
+                        <option value="5" selected>5分钟</option>
+                        <option value="10">10分钟</option>
+                        <option value="30">30分钟</option>
+                    </select>
+                </div>
+
             </div>
             
-            <div class="input-group">
-                <label for="newCookieDomain">域名 (可选):</label>
-                <input type="text" id="newCookieDomain" placeholder="留空使用当前域名">
+
+            
+
+        </div>
+        
+        <!-- 同步标签页 -->
+        <div class="tab-content active" id="sync-tab">
+            <div class="section-title">同步状态</div>
+            
+            <!-- 当前状态 -->
+            <div class="config-item">
+                <h4>📊 当前状态</h4>
+                <div class="status-grid">
+                    <div class="status-row">
+                        <span>连接状态:</span>
+                        <div class="status-indicator">
+                            <span id="connectionStatus" class="status-dot offline"></span>
+                            <span id="connectionText">未连接</span>
+                        </div>
+                    </div>
+                    <div class="status-row">
+                        <span>当前域名:</span>
+                        <span id="currentSyncDomain">-</span>
+                    </div>
+                    <div class="status-row">
+                        <span>最后同步:</span>
+                        <div class="sync-info">
+                            <span id="syncDirection" class="sync-icon">-</span>
+                            <span id="lastSyncTime">从未</span>
+                        </div>
+                    </div>
+                    <div class="status-row">
+                        <span>数据来源:</span>
+                        <span id="dataSource">本地</span>
+                    </div>
+                </div>
             </div>
             
-            <div class="input-group">
-                <label for="newCookiePath">路径 (可选):</label>
-                <input type="text" id="newCookiePath" placeholder="默认为 /">
+            <!-- 快捷访问 -->
+            <div class="config-item">
+                <h4>🔗 快捷访问</h4>
+                <div class="quick-access">
+                    <p style="font-size: 12px; color: #6c757d; margin-bottom: 8px;">
+                        直接访问当前页面的数据
+                    </p>
+                    <button id="openQuickUrl" class="btn-secondary" style="width: 100%;">🌐 打开数据页面</button>
+                </div>
             </div>
             
-            <div class="input-group">
-                <label for="newCookieExpiration">过期时间 (可选):</label>
-                <input type="text" id="newCookieExpiration" placeholder="例如: 2025-12-31T23:59:59Z">
+            <!-- 手动操作 -->
+            <div class="config-item">
+                <h4>⚡ 手动操作</h4>
+                <div class="button-group">
+                    <button id="uploadToServer" class="btn-upload">⬆️ 立即上传</button>
+                    <button id="downloadFromServer" class="btn-download">⬇️ 从服务器下载</button>
+                </div>
+                <button id="syncNow" class="btn-sync" style="width: 100%; margin-top: 8px;">🔄 智能同步</button>
             </div>
             
-            <button id="setCookie" style="width: 100%;">设置Cookie</button>
+            <!-- 版本管理 -->
+            <div class="config-item">
+                <h4>📚 版本历史</h4>
+                <p style="font-size: 11px; color: #6c757d; margin-bottom: 8px;">
+                    保留最近2个服务器版本和3个本地版本，点击版本可回滚
+                </p>
+                <div id="versionHistory" class="version-list">
+                    <p style="color: #6c757d; font-size: 12px; text-align: center; padding: 20px;">
+                        暂无版本历史
+                    </p>
+                </div>
+            </div>
         </div>
         
         <!-- 配置标签页 -->
         <div class="tab-content" id="config-tab">
-            <div class="section-title">扩展配置</div>
+            <div class="section-title">全局配置</div>
             
+            <!-- 服务器配置 -->
             <div class="config-item">
-                <h4>权限管理</h4>
-                <p>此扩展需要Cookie访问权限来读取和设置网站的Cookie。权限仅在您主动授权时获取，并且只对当前访问的网站有效。</p>
+                <h4>🌐 服务器设置</h4>
+                <div class="input-group">
+                    <label for="serverUrl">服务器地址:</label>
+                    <input type="url" id="serverUrl" placeholder="http://localhost:9000">
+                </div>
+                <div class="input-group">
+                    <label for="encryptionKey">加密密钥 (可选):</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="password" id="encryptionKey" placeholder="留空则不加密" style="flex: 1;">
+                        <button id="generateRandomKey" class="btn-random" title="生成随机密钥">🎲 随机</button>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button id="testServer">测试连接</button>
+                    <button id="saveServerConfig" class="btn-primary">保存配置</button>
+                </div>
             </div>
             
+            <!-- 用户Pass显示 -->
+            <div class="config-item" id="userPassSection" style="display: none;">
+                <h4>🔑 用户标识</h4>
+                <div class="pass-display">
+                    <div class="pass-info">
+                        <label>Pass ID:</label>
+                        <div class="pass-value">
+                            <code id="userPassDisplay">未生成</code>
+                            <button id="copyUserPass" class="btn-small" title="复制Pass ID">📋</button>
+                        </div>
+                    </div>
+                    <p style="font-size: 11px; color: #6c757d; margin: 4px 0 0 0;">
+                        这是您的唯一标识符，用于在服务器上隔离您的数据
+                    </p>
+                </div>
+            </div>
+            
+            <!-- LocalStorage设置 -->
             <div class="config-item">
-                <h4>安全说明</h4>
-                <p>Cookie包含敏感信息，请谨慎处理。建议只在可信任的网站上使用此扩展，避免在公共设备上操作敏感Cookie。</p>
+                <h4>💾 LocalStorage设置</h4>
+                <div class="input-group">
+                    <label for="maxValueLength">最大值长度 (字符):</label>
+                    <input type="number" id="maxValueLength" value="500" min="1" max="10000" placeholder="500">
+                    <p style="font-size: 12px; color: #6c757d; margin: 4px 0 0 0;">超过此长度的值将被过滤掉</p>
+                </div>
             </div>
             
+            <!-- 扩展管理 -->
             <div class="config-item">
-                <h4>使用提示</h4>
-                <p>• 在"Cookie"标签页可以获取当前网站的所有Cookie或指定Cookie<br>
-                • 在"Storage"标签页可以获取当前网站的LocalStorage数据<br>
-                • 在"设置"标签页可以添加新的Cookie或修改现有Cookie<br>
-                • 复制的Cookie格式可直接用于HTTP请求头</p>
+                <h4>🔧 扩展管理</h4>
+                <div class="button-group">
+                    <button id="clearAllPermissions" class="btn-danger">清除所有权限</button>
+                    <button id="refreshExtension">刷新扩展</button>
+                </div>
             </div>
             
+            <!-- 使用说明 -->
             <div class="config-item">
-                <h4>LocalStorage 说明</h4>
-                <p>LocalStorage是网站在浏览器中存储的本地数据。此功能可以帮助您查看和分析网站存储的数据，支持按值长度过滤以避免显示过长的数据。</p>
+                <h4>📖 使用说明</h4>
+                <p style="font-size: 12px; line-height: 1.4; color: #6c757d;">
+                    • <strong>Cookie</strong>: 获取和设置当前网站的Cookie<br>
+                    • <strong>Storage</strong>: 管理LocalStorage数据<br>
+                    • <strong>同步</strong>: 查看同步状态和版本历史<br>
+                    • <strong>页面</strong>: 配置当前页面的同步选项<br>
+                    • <strong>配置</strong>: 全局服务器和扩展设置
+                </p>
             </div>
-            
-            <div class="button-group">
-                <button id="clearAllPermissions" class="btn-danger">清除所有权限</button>
-                <button id="refreshExtension">刷新扩展</button>
-            </div>
+        </div>
         </div>
         
         <!-- 状态消息 -->
@@ -417,6 +987,7 @@
         </div>
     </div>
     
+    <script src="sync-manager.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

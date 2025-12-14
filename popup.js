@@ -23,6 +23,40 @@ function initializePopup() {
     // 绑定事件监听器
     bindEventListeners();
     
+    // 自动加载LocalStorage数据（如果Storage标签页是活动的）
+    setTimeout(() => {
+        const activeTab = document.querySelector('.tab.active');
+        if (activeTab && activeTab.getAttribute('data-tab') === 'storage') {
+            getAllStorage();
+        }
+    }, 500);
+    
+    // 如果默认是同步标签页，也要加载LocalStorage数据以备后用
+    setTimeout(() => {
+        const storageTab = document.querySelector('.tab[data-tab="storage"]');
+        if (storageTab) {
+            // 预加载LocalStorage数据但不显示
+            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+                if (tabs[0]) {
+                    const urlInfo = parseTabUrl(tabs[0]);
+                    if (urlInfo.isValid && !urlInfo.isSpecialPage) {
+                        // 静默获取LocalStorage数据，不显示状态消息
+                        chrome.scripting.executeScript({
+                            target: { tabId: tabs[0].id },
+                            func: extractAllLocalStorage
+                        }, function(results) {
+                            // 数据已获取，当用户切换到Storage标签时会立即显示
+                            if (results && results[0] && results[0].result) {
+                                // 缓存数据以供后续使用
+                                window.cachedStorageData = results[0].result;
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    }, 1000);
+    
     // 默认加载所有Cookie
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         console.log('chrome.tabs.query 返回:', tabs);
@@ -102,6 +136,19 @@ function initializeTabs() {
             // 添加当前活动状态
             this.classList.add('active');
             document.getElementById(targetTab + '-tab').classList.add('active');
+            
+            // 如果切换到Storage标签页，自动加载数据
+            if (targetTab === 'storage') {
+                setTimeout(getAllStorage, 100);
+            }
+            
+            // 如果切换到同步标签页，更新状态显示
+            if (targetTab === 'sync') {
+                setTimeout(() => {
+                    updateCurrentDomainDisplay();
+                    updateSyncStatusDisplay();
+                }, 100);
+            }
         });
     });
 }
@@ -206,6 +253,94 @@ function bindEventListeners() {
     
     // 加载保存的过滤设置
     loadStorageSettings();
+    
+    // 同步相关按钮
+    const testServerBtn = document.getElementById('testServer');
+    if (testServerBtn) {
+        testServerBtn.addEventListener('click', testServerConnection);
+    }
+    
+    const saveServerConfigBtn = document.getElementById('saveServerConfig');
+    if (saveServerConfigBtn) {
+        saveServerConfigBtn.addEventListener('click', saveServerConfig);
+    }
+    
+    const saveDomainConfigBtn = document.getElementById('saveDomainConfig');
+    if (saveDomainConfigBtn) {
+        saveDomainConfigBtn.addEventListener('click', saveDomainConfig);
+    }
+    
+    const syncNowBtn = document.getElementById('syncNow');
+    if (syncNowBtn) {
+        syncNowBtn.addEventListener('click', syncNow);
+    }
+    
+    const uploadToServerBtn = document.getElementById('uploadToServer');
+    if (uploadToServerBtn) {
+        uploadToServerBtn.addEventListener('click', uploadToServer);
+    }
+    
+    const downloadFromServerBtn = document.getElementById('downloadFromServer');
+    if (downloadFromServerBtn) {
+        downloadFromServerBtn.addEventListener('click', downloadFromServer);
+    }
+    
+    const refreshVersionsBtn = document.getElementById('refreshVersions');
+    if (refreshVersionsBtn) {
+        refreshVersionsBtn.addEventListener('click', refreshVersionHistory);
+    }
+    
+    // 新增的同步功能按钮
+    const copyUserPassBtn = document.getElementById('copyUserPass');
+    if (copyUserPassBtn) {
+        copyUserPassBtn.addEventListener('click', copyUserPassToClipboard);
+    }
+    
+    const generateQuickUrlBtn = document.getElementById('generateQuickUrl');
+    if (generateQuickUrlBtn) {
+        generateQuickUrlBtn.addEventListener('click', generateQuickAccessUrl);
+    }
+    
+    const copyQuickUrlBtn = document.getElementById('copyQuickUrl');
+    if (copyQuickUrlBtn) {
+        copyQuickUrlBtn.addEventListener('click', copyQuickUrlToClipboard);
+    }
+    
+    const openQuickUrlBtn = document.getElementById('openQuickUrl');
+    if (openQuickUrlBtn) {
+        openQuickUrlBtn.addEventListener('click', openQuickAccessUrl);
+    }
+    
+    // 生成随机密钥按钮
+    const generateRandomKeyBtn = document.getElementById('generateRandomKey');
+    if (generateRandomKeyBtn) {
+        generateRandomKeyBtn.addEventListener('click', generateRandomEncryptionKey);
+    }
+    
+    // 页面设置自动保存
+    const enableCookieSyncCheckbox = document.getElementById('enableCookieSync');
+    if (enableCookieSyncCheckbox) {
+        enableCookieSyncCheckbox.addEventListener('change', saveDomainConfig);
+    }
+    
+    const enableStorageSyncCheckbox = document.getElementById('enableStorageSync');
+    if (enableStorageSyncCheckbox) {
+        enableStorageSyncCheckbox.addEventListener('change', saveDomainConfig);
+    }
+    
+    const syncIntervalSelect = document.getElementById('syncInterval');
+    if (syncIntervalSelect) {
+        syncIntervalSelect.addEventListener('change', saveDomainConfig);
+    }
+    
+    // 监听加密密钥变化，控制随机按钮状态
+    const encryptionKeyInput = document.getElementById('encryptionKey');
+    if (encryptionKeyInput) {
+        encryptionKeyInput.addEventListener('input', updateRandomKeyButtonState);
+    }
+    
+    // 加载同步配置
+    loadSyncConfig();
     
     console.log('bindEventListeners 执行完成');
 }
@@ -1103,6 +1238,32 @@ function parseTabUrl(tab) {
  * 获取所有LocalStorage数据
  */
 function getAllStorage() {
+    // 如果有缓存数据，直接使用
+    if (window.cachedStorageData) {
+        const storageData = window.cachedStorageData;
+        const maxLength = getMaxValueLength();
+        const filteredData = filterStorageByLength(storageData, maxLength);
+        
+        if (Object.keys(filteredData).length === 0) {
+            showStatus('当前页面没有LocalStorage数据或所有数据都被过滤', 'info');
+            return;
+        }
+        
+        const storageString = formatStorageForDisplay(filteredData);
+        displayStorage(storageString);
+        
+        const totalCount = Object.keys(storageData).length;
+        const filteredCount = Object.keys(filteredData).length;
+        const filteredOutCount = totalCount - filteredCount;
+        
+        let statusMsg = `成功获取 ${filteredCount} 个LocalStorage项`;
+        if (filteredOutCount > 0) {
+            statusMsg += ` (已过滤 ${filteredOutCount} 个超长项)`;
+        }
+        showStatus(statusMsg, 'success');
+        return;
+    }
+    
     showStatus('正在获取LocalStorage...', 'info');
     
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
@@ -1130,6 +1291,9 @@ function getAllStorage() {
                     
                     if (results && results[0] && results[0].result) {
                         const storageData = results[0].result;
+                        // 缓存数据
+                        window.cachedStorageData = storageData;
+                        
                         const maxLength = getMaxValueLength();
                         const filteredData = filterStorageByLength(storageData, maxLength);
                         
@@ -1397,4 +1561,1002 @@ document.addEventListener('DOMContentLoaded', function() {
             chrome.storage.local.set({ maxValueLength: value });
         });
     }
+});
+// ==================== 同步功能 ====================
+
+// 同步管理器实例
+let syncManager = null;
+
+// 初始化同步管理器
+async function initializeSyncManager() {
+    try {
+        console.log('开始初始化同步管理器...');
+        
+        // 检查SyncManager是否已加载
+        if (typeof SyncManager === 'undefined') {
+            console.error('SyncManager类未定义，请确保sync-manager.js已正确加载');
+            updateSyncStatus('error', 'SyncManager类未定义');
+            syncManager = null;
+            return;
+        }
+        
+        console.log('SyncManager类已找到，创建实例...');
+        syncManager = new SyncManager();
+        
+        console.log('开始初始化同步管理器实例...');
+        await syncManager.initialize();
+        
+        console.log('同步管理器初始化成功');
+        updateSyncStatus('connected', '同步管理器已就绪');
+    } catch (error) {
+        console.error('同步管理器初始化失败:', error);
+        updateSyncStatus('error', `初始化失败: ${error.message}`);
+        syncManager = null;
+    }
+}
+
+/**
+ * 测试服务器连接
+ */
+async function testServerConnection() {
+    const serverUrl = document.getElementById('serverUrl').value.trim();
+    
+    if (!serverUrl) {
+        showStatus('请输入服务器地址', 'error');
+        return { success: false, error: '服务器地址为空' };
+    }
+    
+    showStatus('正在测试服务器连接...', 'info');
+    updateGlobalConnectionStatus('connecting', '连接中...');
+    
+    try {
+        const response = await fetch(`${serverUrl}/health`);
+        if (response.ok) {
+            const data = await response.json();
+            showStatus(`服务器连接成功 (${data.version || 'unknown'})`, 'success');
+            updateGlobalConnectionStatus('online', '已连接');
+            updateSyncStatus('connected', '服务器连接正常');
+            return { success: true, data };
+        } else {
+            showStatus('服务器连接失败', 'error');
+            updateGlobalConnectionStatus('offline', '连接失败');
+            updateSyncStatus('disconnected', '服务器连接失败');
+            return { success: false, error: '服务器响应错误' };
+        }
+    } catch (error) {
+        showStatus(`连接失败: ${error.message}`, 'error');
+        updateGlobalConnectionStatus('offline', `连接失败: ${error.message}`);
+        updateSyncStatus('disconnected', `连接失败: ${error.message}`);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * 保存服务器配置
+ */
+async function saveServerConfig() {
+    const serverUrl = document.getElementById('serverUrl').value.trim();
+    const encryptionKey = document.getElementById('encryptionKey').value.trim();
+    
+    if (!serverUrl) {
+        showStatus('请输入服务器地址', 'error');
+        return;
+    }
+    
+    try {
+        showStatus('正在保存配置...', 'info');
+        updateGlobalConnectionStatus('connecting', '连接中...');
+        
+        const config = {
+            serverUrl,
+            encryptionKey,
+            enableEncryption: !!encryptionKey
+        };
+        
+        // 保存到本地存储
+        await chrome.storage.local.set({ syncConfig: config });
+        
+        // 如果有同步管理器，更新配置
+        if (syncManager) {
+            await syncManager.updateServerConfig(config);
+        }
+        
+        showStatus('服务器配置已保存', 'success');
+        
+        // 测试连接
+        const connectionResult = await testServerConnection();
+        
+        if (connectionResult && connectionResult.success) {
+            // 连接成功，自动创建或获取Pass
+            if (syncManager && !syncManager.config.userPass) {
+                showStatus('正在创建用户标识...', 'info');
+                try {
+                    const passId = await syncManager.createUserPass();
+                    displayUserPass(passId);
+                    showStatus('用户标识创建成功', 'success');
+                } catch (error) {
+                    showStatus(`创建用户标识失败: ${error.message}`, 'error');
+                }
+            } else if (syncManager && syncManager.config.userPass) {
+                displayUserPass(syncManager.config.userPass);
+            }
+        }
+        
+    } catch (error) {
+        showStatus(`保存配置失败: ${error.message}`, 'error');
+        updateGlobalConnectionStatus('offline', '连接失败');
+    }
+}
+
+/**
+ * 保存域名配置
+ */
+async function saveDomainConfig() {
+    const enableCookieSync = document.getElementById('enableCookieSync').checked;
+    const enableStorageSync = document.getElementById('enableStorageSync').checked;
+    const syncInterval = parseInt(document.getElementById('syncInterval').value) || 5;
+    
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) {
+            showStatus('无法获取当前域名', 'error');
+            return;
+        }
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            showStatus('当前页面不支持同步', 'error');
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        const config = {
+            enableCookieSync,
+            enableStorageSync,
+            syncInterval,
+            lastSyncTime: null,
+            syncSource: 'local'
+        };
+        
+        // 保存域名配置
+        const domainConfigs = await chrome.storage.local.get(['domainConfigs']) || {};
+        domainConfigs.domainConfigs = domainConfigs.domainConfigs || {};
+        domainConfigs.domainConfigs[domain] = config;
+        
+        await chrome.storage.local.set(domainConfigs);
+        
+        // 如果有同步管理器，更新配置
+        if (syncManager) {
+            await syncManager.updateDomainConfig(domain, config);
+        }
+        
+        showStatus(`域名 ${domain} 配置已保存`, 'success');
+        
+    } catch (error) {
+        showStatus(`保存域名配置失败: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 立即同步
+ */
+async function syncNow() {
+    if (!syncManager || !syncManager.isInitialized) {
+        showStatus('同步管理器未初始化', 'error');
+        // 尝试重新初始化
+        await initializeSyncManager();
+        if (!syncManager || !syncManager.isInitialized) {
+            showStatus('同步管理器初始化失败', 'error');
+            return;
+        }
+    }
+    
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) {
+            showStatus('无法获取当前域名', 'error');
+            return;
+        }
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            showStatus('当前页面不支持同步', 'error');
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        
+        showStatus('正在同步...', 'info');
+        updateSyncStatus('syncing', '同步中...');
+        
+        const result = await syncManager.syncDomain(domain);
+        
+        if (result.success) {
+            showStatus(`同步成功 (${result.action})`, 'success');
+            updateSyncStatus('connected', '同步完成');
+            updateSyncDirection(result.action, new Date().toISOString());
+            
+            // 刷新版本历史
+            await refreshVersionHistory();
+            
+            // 更新同步状态显示
+            await updateSyncStatusDisplay();
+        } else {
+            showStatus(`同步失败: ${result.error || result.reason}`, 'error');
+            updateSyncStatus('error', `同步失败: ${result.error || result.reason}`);
+        }
+        
+    } catch (error) {
+        showStatus(`同步失败: ${error.message}`, 'error');
+        updateSyncStatus('error', `同步失败: ${error.message}`);
+    }
+}
+
+/**
+ * 上传到服务器
+ */
+async function uploadToServer() {
+    console.log('uploadToServer 被调用');
+    console.log('syncManager 状态:', syncManager);
+    console.log('syncManager.isInitialized:', syncManager ? syncManager.isInitialized : 'syncManager为null');
+    
+    if (!syncManager || !syncManager.isInitialized) {
+        showStatus('同步管理器未初始化，正在尝试初始化...', 'info');
+        // 尝试重新初始化
+        await initializeSyncManager();
+        if (!syncManager || !syncManager.isInitialized) {
+            showStatus('同步管理器初始化失败，请检查配置', 'error');
+            return;
+        }
+    }
+    
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) return;
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            showStatus('当前页面不支持同步', 'error');
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        
+        // 检查域名同步配置
+        const domainConfig = syncManager.getDomainConfig(domain);
+        if (!domainConfig.enableCookieSync && !domainConfig.enableStorageSync) {
+            showStatus('请先在"页面"标签中启用Cookie或LocalStorage同步', 'error');
+            return;
+        }
+        
+        showStatus('正在上传数据...', 'info');
+        
+        // 获取本地数据
+        const localData = await syncManager.getLocalData(domain);
+        console.log('准备上传的本地数据:', localData);
+        
+        // 检查是否有数据
+        const hasCookies = localData.cookies && Object.keys(localData.cookies).length > 0;
+        const hasLocalStorage = localData.localStorage && Object.keys(localData.localStorage).length > 0;
+        
+        if (!hasCookies && !hasLocalStorage) {
+            showStatus('没有找到可上传的数据（Cookie或LocalStorage）', 'info');
+            return;
+        }
+        
+        showStatus(`正在上传数据... (Cookie: ${hasCookies ? Object.keys(localData.cookies).length : 0}项, LocalStorage: ${hasLocalStorage ? Object.keys(localData.localStorage).length : 0}项)`, 'info');
+        
+        // 上传到服务器
+        await syncManager.uploadToServer(domain, localData);
+        
+        showStatus('数据上传成功', 'success');
+        updateSyncDirection('upload', new Date().toISOString());
+        
+        // 更新域名配置
+        const config = syncManager.getDomainConfig(domain);
+        config.lastSyncTime = new Date().toISOString();
+        config.syncSource = 'local';
+        await syncManager.updateDomainConfig(domain, config);
+        
+        // 刷新显示
+        await refreshVersionHistory();
+        await updateSyncStatusDisplay();
+        
+    } catch (error) {
+        showStatus(`上传失败: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 从服务器下载
+ */
+async function downloadFromServer() {
+    if (!syncManager || !syncManager.isInitialized) {
+        showStatus('同步管理器未初始化', 'error');
+        // 尝试重新初始化
+        await initializeSyncManager();
+        if (!syncManager || !syncManager.isInitialized) {
+            showStatus('同步管理器初始化失败', 'error');
+            return;
+        }
+    }
+    
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) return;
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            showStatus('当前页面不支持同步', 'error');
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        
+        showStatus('正在下载数据...', 'info');
+        
+        // 从服务器获取数据
+        const serverData = await syncManager.getServerData(domain);
+        
+        if (!serverData) {
+            showStatus('服务器没有该域名的数据', 'info');
+            return;
+        }
+        
+        // 应用到当前页面
+        await syncManager.downloadFromServer(domain, serverData);
+        
+        showStatus('数据下载并应用成功', 'success');
+        updateSyncDirection('download', new Date().toISOString());
+        
+        // 更新域名配置
+        const config = syncManager.getDomainConfig(domain);
+        config.lastSyncTime = new Date().toISOString();
+        config.syncSource = 'server';
+        await syncManager.updateDomainConfig(domain, config);
+        
+        // 刷新显示
+        await refreshVersionHistory();
+        await updateSyncStatusDisplay();
+        
+    } catch (error) {
+        showStatus(`下载失败: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 刷新版本历史
+ */
+async function refreshVersionHistory() {
+    if (!syncManager) {
+        showStatus('同步管理器未初始化', 'error');
+        return;
+    }
+    
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) return;
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            renderVersionHistory([]);
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        showStatus('正在获取版本历史...', 'info');
+        
+        const versions = await syncManager.getVersionHistory(domain);
+        renderVersionHistory(versions);
+        
+        if (versions.length > 0) {
+            showStatus(`获取到 ${versions.length} 个版本`, 'success');
+        } else {
+            showStatus('暂无版本历史', 'info');
+        }
+        
+    } catch (error) {
+        console.error('刷新版本历史失败:', error);
+        showStatus(`获取版本历史失败: ${error.message}`, 'error');
+        renderVersionHistory([]);
+    }
+}
+
+/**
+ * 更新同步状态显示
+ */
+function updateSyncStatus(status, message) {
+    const statusText = document.getElementById('syncStatusText');
+    if (statusText) {
+        statusText.textContent = message;
+        statusText.className = `status-${status}`;
+    }
+}
+
+/**
+ * 更新同步方向显示
+ */
+function updateSyncDirection(action, timestamp) {
+    const syncIcon = document.getElementById('syncDirection');
+    const lastSyncTime = document.getElementById('lastSyncTime');
+    
+    if (syncIcon && lastSyncTime) {
+        let icon = '-';
+        let className = '';
+        
+        switch (action) {
+            case 'upload':
+                icon = '⬆️';
+                className = 'upload';
+                break;
+            case 'download':
+                icon = '⬇️';
+                className = 'download';
+                break;
+            case 'sync':
+                icon = '🔄';
+                className = 'sync';
+                break;
+        }
+        
+        syncIcon.textContent = icon;
+        syncIcon.className = `sync-icon ${className}`;
+        
+        if (timestamp) {
+            const date = new Date(timestamp);
+            lastSyncTime.textContent = date.toLocaleString();
+        }
+    }
+}
+
+/**
+ * 更新同步状态详细信息
+ */
+async function updateSyncStatusDisplay() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) return;
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) return;
+        
+        const domain = urlInfo.domain;
+        
+        // 获取域名配置
+        const domainConfigs = await chrome.storage.local.get(['domainConfigs']);
+        const config = domainConfigs.domainConfigs?.[domain] || {};
+        
+        // 更新最后同步时间
+        const lastSyncElement = document.getElementById('lastSyncTime');
+        if (lastSyncElement) {
+            if (config.lastSyncTime) {
+                const date = new Date(config.lastSyncTime).toLocaleString();
+                lastSyncElement.textContent = `最后同步: ${date}`;
+            } else {
+                lastSyncElement.textContent = '最后同步: 从未';
+            }
+        }
+        
+        // 更新数据来源
+        const dataSourceElement = document.getElementById('dataSource');
+        if (dataSourceElement) {
+            const source = config.syncSource === 'server' ? '服务器' : '本地';
+            dataSourceElement.textContent = `数据来源: ${source}`;
+        }
+        
+    } catch (error) {
+        console.error('更新同步状态显示失败:', error);
+    }
+}
+
+/**
+ * 加载同步配置
+ */
+async function loadSyncConfig() {
+    try {
+        // 加载服务器配置
+        const syncConfig = await chrome.storage.local.get(['syncConfig']);
+        if (syncConfig.syncConfig) {
+            const config = syncConfig.syncConfig;
+            
+            const serverUrlInput = document.getElementById('serverUrl');
+            if (serverUrlInput) {
+                serverUrlInput.value = config.serverUrl || '';
+            }
+            
+            const encryptionKeyInput = document.getElementById('encryptionKey');
+            if (encryptionKeyInput) {
+                encryptionKeyInput.value = config.encryptionKey || '';
+            }
+            
+            // 如果有Pass ID，显示它
+            if (config.userPass) {
+                displayUserPass(config.userPass);
+            }
+        }
+        
+        // 加载当前域名配置
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]) {
+            const urlInfo = parseTabUrl(tabs[0]);
+            if (urlInfo.isValid && !urlInfo.isSpecialPage) {
+                const domain = urlInfo.domain;
+                
+                const domainConfigs = await chrome.storage.local.get(['domainConfigs']);
+                const config = domainConfigs.domainConfigs?.[domain] || {};
+                
+                const enableCookieSyncInput = document.getElementById('enableCookieSync');
+                if (enableCookieSyncInput) {
+                    enableCookieSyncInput.checked = config.enableCookieSync || false;
+                }
+                
+                const enableStorageSyncInput = document.getElementById('enableStorageSync');
+                if (enableStorageSyncInput) {
+                    enableStorageSyncInput.checked = config.enableStorageSync || false;
+                }
+                
+                const syncIntervalInput = document.getElementById('syncInterval');
+                if (syncIntervalInput) {
+                    syncIntervalInput.value = config.syncInterval || 5;
+                }
+            }
+        }
+        
+        // 初始化同步管理器
+        await initializeSyncManager();
+        
+        // 更新状态显示
+        await updateSyncStatusDisplay();
+        
+        // 如果有服务器配置，测试连接
+        if (syncConfig.syncConfig && syncConfig.syncConfig.serverUrl) {
+            await testServerConnection();
+        }
+        
+        // 更新随机密钥按钮状态
+        updateRandomKeyButtonState();
+        
+    } catch (error) {
+        console.error('加载同步配置失败:', error);
+        // 即使配置加载失败，也要尝试初始化同步管理器
+        try {
+            await initializeSyncManager();
+        } catch (initError) {
+            console.error('同步管理器初始化失败:', initError);
+        }
+    }
+}
+
+/**
+ * 复制用户Pass到剪贴板
+ */
+async function copyUserPassToClipboard() {
+    const passDisplay = document.getElementById('userPassDisplay');
+    const passId = passDisplay.textContent;
+    
+    if (!passId || passId === '未生成') {
+        showStatus('没有可复制的Pass ID', 'error');
+        return;
+    }
+    
+    try {
+        await navigator.clipboard.writeText(passId);
+        showStatus('Pass ID已复制到剪贴板', 'success');
+    } catch (error) {
+        // 降级方案
+        const textarea = document.createElement('textarea');
+        textarea.value = passId;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showStatus('Pass ID已复制到剪贴板', 'success');
+    }
+}
+
+/**
+ * 生成快捷访问URL
+ */
+async function generateQuickAccessUrl() {
+    if (!syncManager || !syncManager.isInitialized) {
+        showStatus('同步管理器未初始化', 'error');
+        return;
+    }
+    
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) {
+            showStatus('无法获取当前页面', 'error');
+            return;
+        }
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            showStatus('当前页面不支持生成快捷访问链接', 'error');
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        const quickUrl = await syncManager.generateQuickAccessUrl(domain);
+        
+        // 显示URL
+        const urlDisplay = document.getElementById('quickUrlDisplay');
+        const urlInput = document.getElementById('quickUrlInput');
+        const copyBtn = document.getElementById('copyQuickUrl');
+        
+        urlInput.value = quickUrl;
+        urlDisplay.style.display = 'block';
+        copyBtn.disabled = false;
+        
+        showStatus('快捷访问链接已生成', 'success');
+        
+    } catch (error) {
+        showStatus(`生成链接失败: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 复制快捷访问URL到剪贴板
+ */
+async function copyQuickUrlToClipboard() {
+    const urlInput = document.getElementById('quickUrlInput');
+    const url = urlInput.value;
+    
+    if (!url) {
+        showStatus('没有可复制的链接', 'error');
+        return;
+    }
+    
+    try {
+        await navigator.clipboard.writeText(url);
+        showStatus('快捷访问链接已复制到剪贴板', 'success');
+    } catch (error) {
+        // 降级方案
+        urlInput.select();
+        document.execCommand('copy');
+        showStatus('快捷访问链接已复制到剪贴板', 'success');
+    }
+}
+
+/**
+ * 打开快捷访问URL
+ */
+async function openQuickAccessUrl() {
+    if (!syncManager || !syncManager.isInitialized) {
+        showStatus('同步管理器未初始化', 'error');
+        return;
+    }
+    
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) {
+            showStatus('无法获取当前页面', 'error');
+            return;
+        }
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            showStatus('当前页面不支持快捷访问', 'error');
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        const quickUrl = await syncManager.generateQuickAccessUrl(domain);
+        
+        // 在新标签页中打开链接
+        chrome.tabs.create({ url: quickUrl });
+        showStatus('已在新标签页中打开数据页面', 'success');
+        
+    } catch (error) {
+        showStatus(`打开链接失败: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 生成随机加密密钥
+ */
+function generateRandomEncryptionKey() {
+    const encryptionKeyInput = document.getElementById('encryptionKey');
+    
+    // 如果已有密钥，需要用户确认
+    if (encryptionKeyInput && encryptionKeyInput.value.trim()) {
+        if (!confirm('已存在加密密钥，确定要生成新的随机密钥吗？这将替换现有密钥。')) {
+            return;
+        }
+    }
+    
+    try {
+        // 使用加密安全的随机数生成器
+        const array = new Uint8Array(24); // 24 bytes = 32 base64 characters
+        crypto.getRandomValues(array);
+        
+        // 转换为base64字符串
+        const result = btoa(String.fromCharCode.apply(null, array))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=/g, '');
+        
+        if (encryptionKeyInput) {
+            encryptionKeyInput.value = result;
+            encryptionKeyInput.type = 'text'; // 临时显示密钥
+            
+            // 2秒后隐藏密钥
+            setTimeout(() => {
+                encryptionKeyInput.type = 'password';
+                updateRandomKeyButtonState(); // 更新按钮状态
+            }, 2000);
+            
+            showStatus('安全随机加密密钥已生成', 'success');
+            updateRandomKeyButtonState(); // 立即更新按钮状态
+        }
+    } catch (error) {
+        // 降级到普通随机数生成器
+        console.warn('使用降级随机数生成器:', error);
+        
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+        let result = '';
+        for (let i = 0; i < 32; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        
+        if (encryptionKeyInput) {
+            encryptionKeyInput.value = result;
+            encryptionKeyInput.type = 'text';
+            
+            setTimeout(() => {
+                encryptionKeyInput.type = 'password';
+                updateRandomKeyButtonState();
+            }, 2000);
+            
+            showStatus('随机加密密钥已生成', 'success');
+            updateRandomKeyButtonState();
+        }
+    }
+}
+
+/**
+ * 更新随机密钥按钮状态
+ */
+function updateRandomKeyButtonState() {
+    const encryptionKeyInput = document.getElementById('encryptionKey');
+    const generateRandomKeyBtn = document.getElementById('generateRandomKey');
+    
+    if (encryptionKeyInput && generateRandomKeyBtn) {
+        const hasKey = encryptionKeyInput.value.trim().length > 0;
+        
+        if (hasKey) {
+            generateRandomKeyBtn.textContent = '🔄 重新生成';
+            generateRandomKeyBtn.title = '重新生成随机密钥（将替换现有密钥）';
+        } else {
+            generateRandomKeyBtn.textContent = '🎲 随机';
+            generateRandomKeyBtn.title = '生成随机密钥';
+        }
+    }
+}
+
+/**
+ * 更新全局连接状态
+ */
+function updateGlobalConnectionStatus(status, message) {
+    const statusDot = document.getElementById('connectionStatus');
+    const statusText = document.getElementById('connectionText');
+    
+    if (statusDot && statusText) {
+        statusDot.className = `status-dot ${status}`;
+        statusText.textContent = message;
+    }
+}
+
+/**
+ * 显示用户Pass信息
+ */
+function displayUserPass(passId) {
+    const userPassSection = document.getElementById('userPassSection');
+    const userPassDisplay = document.getElementById('userPassDisplay');
+    
+    if (userPassSection && userPassDisplay) {
+        userPassDisplay.textContent = passId;
+        userPassSection.style.display = 'block';
+    }
+}
+
+/**
+ * 更新当前域名显示
+ */
+function updateCurrentDomainDisplay() {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        const syncDomainSpan = document.getElementById('currentSyncDomain');
+        const pageDomainSpan = document.getElementById('currentPageDomain');
+        
+        if (tabs[0]) {
+            const urlInfo = parseTabUrl(tabs[0]);
+            const domainText = urlInfo.isValid && !urlInfo.isSpecialPage ? urlInfo.domain : '不支持的页面';
+            
+            if (syncDomainSpan) {
+                syncDomainSpan.textContent = domainText;
+            }
+            if (pageDomainSpan) {
+                pageDomainSpan.textContent = domainText;
+            }
+        }
+    });
+}
+
+/**
+ * 版本回滚功能
+ */
+let selectedVersionId = null;
+
+async function rollbackToVersion() {
+    if (!selectedVersionId) {
+        showStatus('请先选择要回滚的版本', 'error');
+        return;
+    }
+    
+    if (!confirm('确定要回滚到选中的版本吗？当前数据将被覆盖！')) {
+        return;
+    }
+    
+    try {
+        showStatus('正在回滚版本...', 'info');
+        
+        // 这里应该实现版本回滚逻辑
+        // 由于当前版本存储在本地，这里只是一个示例
+        showStatus('版本回滚功能开发中...', 'info');
+        
+    } catch (error) {
+        showStatus(`版本回滚失败: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 渲染版本历史列表
+ */
+function renderVersionHistory(versions) {
+    const historyDiv = document.getElementById('versionHistory');
+    
+    if (!historyDiv) return;
+    
+    if (!versions || versions.length === 0) {
+        historyDiv.innerHTML = '<p style="color: #6c757d; font-size: 12px; text-align: center; padding: 20px;">暂无版本历史</p>';
+        return;
+    }
+    
+    // 按时间排序，最新的在前
+    const sortedVersions = [...versions].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    const historyHtml = sortedVersions.map((version, index) => {
+        const date = new Date(version.timestamp).toLocaleString();
+        const size = version.size ? (version.size / 1024).toFixed(1) + 'KB' : '-';
+        
+        // 根据实际数据判断来源，如果没有source字段，根据索引推测
+        let source = version.source;
+        if (!source) {
+            // 假设前2个是服务器版本，后面的是本地版本
+            source = index < 2 ? 'server' : 'local';
+        }
+        
+        const sourceText = source === 'server' ? '服务器' : '本地';
+        const versionNumber = index + 1;
+        
+        return `
+            <div class="version-item" data-version-id="${version.id}">
+                <div class="version-info">
+                    <div class="version-header">
+                        <span class="version-id">版本 ${versionNumber}</span>
+                        <span class="version-source ${source}">${sourceText}</span>
+                    </div>
+                    <div class="version-meta">${date} • ${size}</div>
+                </div>
+                <div class="version-actions">
+                    <button class="rollback-btn" onclick="rollbackToVersion('${version.id}', event)" title="回滚到此版本">
+                        回滚
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    historyDiv.innerHTML = historyHtml;
+}
+
+/**
+ * 选择版本
+ */
+function selectVersion(versionId, element) {
+    selectedVersionId = versionId;
+    
+    // 更新选中状态
+    document.querySelectorAll('.version-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    element.classList.add('selected');
+}
+
+/**
+ * 版本回滚功能
+ */
+async function rollbackToVersion(versionId, event) {
+    event.stopPropagation(); // 阻止事件冒泡
+    
+    if (!confirm('确定要回滚到这个版本吗？当前数据将被覆盖！')) {
+        return;
+    }
+    
+    if (!syncManager || !syncManager.isInitialized) {
+        showStatus('同步管理器未初始化', 'error');
+        return;
+    }
+    
+    try {
+        showStatus('正在回滚版本...', 'info');
+        
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) {
+            showStatus('无法获取当前页面', 'error');
+            return;
+        }
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) {
+            showStatus('当前页面不支持版本回滚', 'error');
+            return;
+        }
+        
+        const domain = urlInfo.domain;
+        
+        // 从服务器获取指定版本的数据
+        const url = `${syncManager.config.serverUrl}/api/data/${syncManager.config.userPass}/version/${versionId}?domain=${encodeURIComponent(domain)}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`获取版本数据失败: ${response.status}`);
+        }
+        
+        const versionData = await response.json();
+        
+        // 解密数据（如果需要）
+        let data = versionData.data;
+        if (syncManager.config.enableEncryption && syncManager.config.encryptionKey) {
+            data = syncManager.decrypt(data);
+        }
+        
+        if (typeof data === 'string') {
+            data = JSON.parse(data);
+        }
+        
+        // 应用数据到当前页面
+        await syncManager.applyDataToPage(domain, data);
+        
+        showStatus('版本回滚成功', 'success');
+        
+        // 更新同步状态
+        const config = syncManager.getDomainConfig(domain);
+        config.lastSyncTime = new Date().toISOString();
+        config.syncSource = 'server';
+        await syncManager.updateDomainConfig(domain, config);
+        
+        // 刷新显示
+        await updateSyncStatusDisplay();
+        updateSyncDirection('download', new Date().toISOString());
+        
+    } catch (error) {
+        console.error('版本回滚失败:', error);
+        showStatus(`版本回滚失败: ${error.message}`, 'error');
+    }
+}
+
+// 在DOM加载完成后初始化同步功能
+document.addEventListener('DOMContentLoaded', function() {
+    // 延迟加载同步功能，确保其他功能先初始化
+    setTimeout(() => {
+        loadSyncConfig();
+        updateCurrentDomainDisplay();
+        
+        // 如果当前是同步标签页，刷新版本历史
+        const activeTab = document.querySelector('.tab.active');
+        if (activeTab && activeTab.getAttribute('data-tab') === 'sync') {
+            setTimeout(refreshVersionHistory, 500);
+        }
+    }, 100);
 });
