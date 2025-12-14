@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Cookie Manager",
-  "version": "1.0",
-  "description": "管理当前页面的Cookie，支持读取、写入和复制功能",
+  "version": "1.2",
+  "description": "管理当前页面的Cookie，支持读取、写入和复制功能。现代化三标签页界面。",
   "permissions": [
     "activeTab",
     "cookies",
-    "permissions"
+    "permissions",
+    "scripting",
+    "storage"
   ],
   "optional_host_permissions": [
     "<all_urls>"

@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializePopup() {
     console.log('initializePopup 开始执行');
     
+    // 初始化标签页切换
+    initializeTabs();
+    
     // 获取当前标签页信息
     getCurrentTabInfo();
     
@@ -25,34 +28,33 @@ function initializePopup() {
         console.log('chrome.tabs.query 返回:', tabs);
         
         if (tabs[0]) {
-            // 检查是否是有效的URL
-            try {
-                const url = new URL(tabs[0].url);
-                console.log('解析的URL:', url);
-                
-                // 检查是否是特殊页面（如chrome://页面）
-                if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
-                    console.log('检测到特殊页面，协议:', url.protocol);
-                    showStatus('无法在特殊页面获取Cookie', 'info');
-                    return;
-                }
-                
-                const domain = url.hostname;
-                console.log('提取的域名:', domain);
-                
-                // 先检查权限状态
-                console.log('准备检查权限状态');
-                checkPermissionsAndShowStatus(domain);
-                
-                // 尝试获取所有Cookie
-                console.log('开始尝试获取Cookie，初始化加载');
-                tryGetAllCookies(tabs[0], domain, true); // 传入true表示是初始化加载
-            } catch (error) {
-                console.error('URL解析错误:', error);
-                showStatus('无法解析当前页面URL', 'error');
+            const urlInfo = parseTabUrl(tabs[0]);
+            console.log('URL解析结果:', urlInfo);
+            
+            if (!urlInfo.isValid) {
+                console.log('URL解析失败:', urlInfo.error);
+                showStatus(urlInfo.error, 'error');
+                return;
             }
+            
+            if (urlInfo.isSpecialPage) {
+                console.log('检测到特殊页面');
+                showStatus('无法在特殊页面获取Cookie', 'info');
+                return;
+            }
+            
+            console.log('提取的域名:', urlInfo.domain);
+            
+            // 先检查权限状态
+            console.log('准备检查权限状态');
+            checkPermissionsAndShowStatus(urlInfo.domain);
+            
+            // 尝试获取所有Cookie
+            console.log('开始尝试获取Cookie，初始化加载');
+            tryGetAllCookies(tabs[0], urlInfo.domain, true); // 传入true表示是初始化加载
         } else {
             console.error('没有找到活动标签页');
+            showStatus('没有找到活动标签页', 'error');
         }
     });
 }
@@ -63,22 +65,44 @@ function initializePopup() {
 function getCurrentTabInfo() {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         if (tabs[0]) {
-            try {
-                const url = new URL(tabs[0].url);
-                
-                // 检查是否是特殊页面
-                if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
-                    document.getElementById('currentDomain').textContent = `当前页面: 特殊页面`;
-                    return;
-                }
-                
-                const domain = url.hostname;
-                document.getElementById('currentDomain').textContent = `当前域名: ${domain}`;
-            } catch (error) {
-                document.getElementById('currentDomain').textContent = `当前页面: 无法解析`;
-                console.error('URL解析错误:', error);
+            const urlInfo = parseTabUrl(tabs[0]);
+            
+            if (!urlInfo.isValid) {
+                document.getElementById('currentDomain').textContent = `当前页面: ${urlInfo.error}`;
+                return;
             }
+            
+            if (urlInfo.isSpecialPage) {
+                document.getElementById('currentDomain').textContent = `当前页面: 特殊页面`;
+                return;
+            }
+            
+            document.getElementById('currentDomain').textContent = `当前域名: ${urlInfo.domain}`;
+        } else {
+            document.getElementById('currentDomain').textContent = `当前页面: 无活动标签页`;
         }
+    });
+}
+
+/**
+ * 初始化标签页切换功能
+ */
+function initializeTabs() {
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const targetTab = this.getAttribute('data-tab');
+            
+            // 移除所有活动状态
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // 添加当前活动状态
+            this.classList.add('active');
+            document.getElementById(targetTab + '-tab').classList.add('active');
+        });
     });
 }
 
@@ -142,6 +166,47 @@ function bindEventListeners() {
         setCookieBtn.addEventListener('click', setNewCookie);
     }
     
+    // 清除所有权限按钮
+    const clearAllPermissionsBtn = document.getElementById('clearAllPermissions');
+    if (clearAllPermissionsBtn) {
+        clearAllPermissionsBtn.addEventListener('click', clearAllPermissions);
+    }
+    
+    // 刷新扩展按钮
+    const refreshExtensionBtn = document.getElementById('refreshExtension');
+    if (refreshExtensionBtn) {
+        refreshExtensionBtn.addEventListener('click', refreshExtension);
+    }
+    
+    // LocalStorage相关按钮
+    const getAllStorageBtn = document.getElementById('getAllStorage');
+    if (getAllStorageBtn) {
+        getAllStorageBtn.addEventListener('click', getAllStorage);
+    }
+    
+    const getSpecificStorageBtn = document.getElementById('getSpecificStorage');
+    if (getSpecificStorageBtn) {
+        getSpecificStorageBtn.addEventListener('click', toggleSpecificStorageInput);
+    }
+    
+    const readSpecificStorageBtn = document.getElementById('readSpecificStorage');
+    if (readSpecificStorageBtn) {
+        readSpecificStorageBtn.addEventListener('click', getSpecificStorage);
+    }
+    
+    const copyStorageBtn = document.getElementById('copyStorage');
+    if (copyStorageBtn) {
+        copyStorageBtn.addEventListener('click', copyStorageToClipboard);
+    }
+    
+    const clearStorageDisplayBtn = document.getElementById('clearStorageDisplay');
+    if (clearStorageDisplayBtn) {
+        clearStorageDisplayBtn.addEventListener('click', clearStorageDisplay);
+    }
+    
+    // 加载保存的过滤设置
+    loadStorageSettings();
+    
     console.log('bindEventListeners 执行完成');
 }
 
@@ -153,26 +218,24 @@ function getAllCookies() {
     
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         if (tabs[0]) {
-            try {
-                const url = new URL(tabs[0].url);
-                
-                // 检查是否是特殊页面
-                if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
-                    showStatus('无法在特殊页面获取Cookie', 'info');
-                    return;
-                }
-                
-                const domain = url.hostname;
-                
-                // 先检查权限状态
-                checkPermissionsAndShowStatus(domain);
-                
-                // 直接尝试获取Cookie，如果没有权限Chrome会返回错误
-                tryGetAllCookies(tabs[0], domain, false);
-            } catch (error) {
-                showStatus('无法解析当前页面URL', 'error');
-                console.error('URL解析错误:', error);
+            const urlInfo = parseTabUrl(tabs[0]);
+            if (!urlInfo.isValid) {
+                showStatus(urlInfo.error, 'error');
+                return;
             }
+            
+            if (urlInfo.isSpecialPage) {
+                showStatus('无法在特殊页面获取Cookie', 'info');
+                return;
+            }
+            
+            // 先检查权限状态
+            checkPermissionsAndShowStatus(urlInfo.domain);
+            
+            // 直接尝试获取Cookie，如果没有权限Chrome会返回错误
+            tryGetAllCookies(tabs[0], urlInfo.domain, false);
+        } else {
+            showStatus('没有找到活动标签页', 'error');
         }
     });
 }
@@ -341,23 +404,21 @@ function getSpecificCookie() {
     
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         if (tabs[0]) {
-            try {
-                const url = new URL(tabs[0].url);
-                
-                // 检查是否是特殊页面
-                if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
-                    showStatus('无法在特殊页面获取Cookie', 'info');
-                    return;
-                }
-                
-                const domain = url.hostname;
-                
-                // 直接尝试获取Cookie，如果没有权限Chrome会返回错误
-                tryGetSpecificCookie(tabs[0], domain, cookieName);
-            } catch (error) {
-                showStatus('无法解析当前页面URL', 'error');
-                console.error('URL解析错误:', error);
+            const urlInfo = parseTabUrl(tabs[0]);
+            if (!urlInfo.isValid) {
+                showStatus(urlInfo.error, 'error');
+                return;
             }
+            
+            if (urlInfo.isSpecialPage) {
+                showStatus('无法在特殊页面获取Cookie', 'info');
+                return;
+            }
+            
+            // 直接尝试获取Cookie，如果没有权限Chrome会返回错误
+            tryGetSpecificCookie(tabs[0], urlInfo.domain, cookieName);
+        } else {
+            showStatus('没有找到活动标签页', 'error');
         }
     });
 }
@@ -558,18 +619,20 @@ function setNewCookie() {
     
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         if (tabs[0]) {
-            try {
-                const url = new URL(tabs[0].url);
-                
-                // 检查是否是特殊页面
-                if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
-                    showStatus('无法在特殊页面设置Cookie', 'info');
-                    return;
-                }
-                
-                const domain = document.getElementById('newCookieDomain').value.trim() || url.hostname;
-                const path = document.getElementById('newCookiePath').value.trim() || '/';
-                const expirationInput = document.getElementById('newCookieExpiration').value.trim();
+            const urlInfo = parseTabUrl(tabs[0]);
+            if (!urlInfo.isValid) {
+                showStatus(urlInfo.error, 'error');
+                return;
+            }
+            
+            if (urlInfo.isSpecialPage) {
+                showStatus('无法在特殊页面设置Cookie', 'info');
+                return;
+            }
+            
+            const domain = document.getElementById('newCookieDomain').value.trim() || urlInfo.domain;
+            const path = document.getElementById('newCookiePath').value.trim() || '/';
+            const expirationInput = document.getElementById('newCookieExpiration').value.trim();
             
             // 检查是否有权限访问该域名的Cookie
             checkAndRequestPermission(domain)
@@ -596,7 +659,7 @@ function setNewCookie() {
                         value: value,
                         domain: domain,
                         path: path,
-                        secure: url.protocol === 'https:',
+                        secure: urlInfo.url.protocol === 'https:',
                         httpOnly: false
                     };
                     
@@ -624,10 +687,8 @@ function setNewCookie() {
                 .catch(error => {
                     showStatus('权限检查失败: ' + error.message, 'error');
                 });
-            } catch (error) {
-                showStatus('无法解析当前页面URL', 'error');
-                console.error('URL解析错误:', error);
-            }
+        } else {
+            showStatus('没有找到活动标签页', 'error');
         }
     });
 }
@@ -694,31 +755,29 @@ function checkAndRequestPermission(domain) {
 function requestPermissionAndLoadCookies() {
     chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
         if (tabs[0]) {
-            try {
-                const url = new URL(tabs[0].url);
-                
-                // 检查是否是特殊页面
-                if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
-                    showStatus('无法在特殊页面获取Cookie', 'info');
-                    return;
-                }
-                
-                const domain = url.hostname;
-                
-                // 隐藏申请权限按钮
-                document.getElementById('requestPermissionGroup').classList.add('hidden');
-                
-                // 申请权限并重试获取Cookie
-                requestPermissionAndRetry(domain, () => {
-                    // 权限申请成功后，再次检查权限状态
-                    checkPermissionsAndShowStatus(domain);
-                    // 然后获取Cookie
-                    tryGetAllCookies(tabs[0], domain, false);
-                });
-            } catch (error) {
-                showStatus('无法解析当前页面URL', 'error');
-                console.error('URL解析错误:', error);
+            const urlInfo = parseTabUrl(tabs[0]);
+            if (!urlInfo.isValid) {
+                showStatus(urlInfo.error, 'error');
+                return;
             }
+            
+            if (urlInfo.isSpecialPage) {
+                showStatus('无法在特殊页面获取Cookie', 'info');
+                return;
+            }
+            
+            // 隐藏申请权限按钮
+            document.getElementById('requestPermissionGroup').classList.add('hidden');
+            
+            // 申请权限并重试获取Cookie
+            requestPermissionAndRetry(urlInfo.domain, () => {
+                // 权限申请成功后，再次检查权限状态
+                checkPermissionsAndShowStatus(urlInfo.domain);
+                // 然后获取Cookie
+                tryGetAllCookies(tabs[0], urlInfo.domain, false);
+            });
+        } else {
+            showStatus('没有找到活动标签页', 'error');
         }
     });
 }
@@ -880,5 +939,462 @@ function showStatus(message, type) {
 document.getElementById('cookieName').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         getSpecificCookie();
+    }
+});
+
+/**
+ * 清除所有权限
+ */
+function clearAllPermissions() {
+    showStatus('正在清除所有权限...', 'info');
+    
+    // 获取所有已授权的权限
+    chrome.permissions.getAll(function(permissions) {
+        if (chrome.runtime.lastError) {
+            showStatus('获取权限列表失败: ' + chrome.runtime.lastError.message, 'error');
+            return;
+        }
+        
+        // 过滤出可选的主机权限（不包括必需的权限）
+        const optionalOrigins = permissions.origins.filter(origin => 
+            origin !== '<all_urls>' && !origin.includes('chrome-extension://')
+        );
+        
+        if (optionalOrigins.length === 0) {
+            showStatus('没有可清除的权限', 'info');
+            return;
+        }
+        
+        // 移除可选权限
+        chrome.permissions.remove({
+            origins: optionalOrigins
+        }, function(removed) {
+            if (chrome.runtime.lastError) {
+                showStatus('清除权限失败: ' + chrome.runtime.lastError.message, 'error');
+                return;
+            }
+            
+            if (removed) {
+                showStatus(`已清除 ${optionalOrigins.length} 个网站的权限`, 'success');
+                
+                // 清除Cookie显示
+                clearCookieDisplay();
+                
+                // 显示申请权限按钮
+                const permissionGroup = document.getElementById('requestPermissionGroup');
+                if (permissionGroup) {
+                    permissionGroup.classList.remove('hidden');
+                }
+            } else {
+                showStatus('权限清除失败', 'error');
+            }
+        });
+    });
+}
+
+/**
+ * 刷新扩展
+ */
+function refreshExtension() {
+    showStatus('正在刷新扩展...', 'info');
+    
+    // 清除所有显示内容
+    clearCookieDisplay();
+    
+    // 重新获取当前标签页信息
+    getCurrentTabInfo();
+    
+    // 重新检查权限状态
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (tabs[0]) {
+            const urlInfo = parseTabUrl(tabs[0]);
+            
+            if (!urlInfo.isValid) {
+                showStatus('扩展已刷新', 'success');
+                return;
+            }
+            
+            if (urlInfo.isSpecialPage) {
+                showStatus('当前页面已刷新', 'success');
+                return;
+            }
+            
+            checkPermissionsAndShowStatus(urlInfo.domain);
+            showStatus('扩展已刷新', 'success');
+        } else {
+            showStatus('扩展已刷新', 'success');
+        }
+    });
+}
+
+// ==================== 工具函数 ====================
+
+/**
+ * 解析标签页URL
+ * @param {object} tab - 标签页对象
+ * @returns {object} 解析结果
+ */
+function parseTabUrl(tab) {
+    const result = {
+        isValid: false,
+        isSpecialPage: false,
+        domain: null,
+        url: null,
+        error: null
+    };
+    
+    try {
+        // 检查tab和url是否存在
+        if (!tab || !tab.url) {
+            result.error = '无法获取当前页面信息';
+            return result;
+        }
+        
+        const urlString = tab.url;
+        console.log('正在解析URL:', urlString);
+        
+        // 检查URL格式
+        if (!urlString.startsWith('http://') && !urlString.startsWith('https://') && 
+            !urlString.startsWith('chrome://') && !urlString.startsWith('chrome-extension://') &&
+            !urlString.startsWith('moz-extension://') && !urlString.startsWith('file://')) {
+            result.error = '不支持的URL格式: ' + urlString;
+            return result;
+        }
+        
+        const url = new URL(urlString);
+        result.url = url;
+        
+        // 检查是否是特殊页面
+        const specialProtocols = ['chrome:', 'chrome-extension:', 'moz-extension:', 'file:'];
+        if (specialProtocols.includes(url.protocol)) {
+            result.isSpecialPage = true;
+            result.isValid = true;
+            return result;
+        }
+        
+        // 检查是否是有效的网页
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            result.error = '只支持HTTP/HTTPS协议的网页';
+            return result;
+        }
+        
+        // 检查域名
+        if (!url.hostname) {
+            result.error = '无法获取域名信息';
+            return result;
+        }
+        
+        result.domain = url.hostname;
+        result.isValid = true;
+        
+        console.log('URL解析成功:', result);
+        return result;
+        
+    } catch (error) {
+        console.error('URL解析异常:', error);
+        result.error = `URL解析失败: ${error.message}`;
+        return result;
+    }
+}
+
+// ==================== LocalStorage 功能 ====================
+
+/**
+ * 获取所有LocalStorage数据
+ */
+function getAllStorage() {
+    showStatus('正在获取LocalStorage...', 'info');
+    
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (tabs[0]) {
+            const urlInfo = parseTabUrl(tabs[0]);
+            if (!urlInfo.isValid) {
+                showStatus(urlInfo.error, 'error');
+                return;
+            }
+            
+            if (urlInfo.isSpecialPage) {
+                showStatus('无法在特殊页面获取LocalStorage', 'info');
+                return;
+            }
+            
+            // 注入内容脚本获取localStorage
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                func: extractAllLocalStorage
+            }, function(results) {
+                    if (chrome.runtime.lastError) {
+                        showStatus('获取LocalStorage失败: ' + chrome.runtime.lastError.message, 'error');
+                        return;
+                    }
+                    
+                    if (results && results[0] && results[0].result) {
+                        const storageData = results[0].result;
+                        const maxLength = getMaxValueLength();
+                        const filteredData = filterStorageByLength(storageData, maxLength);
+                        
+                        if (Object.keys(filteredData).length === 0) {
+                            showStatus('当前页面没有LocalStorage数据或所有数据都被过滤', 'info');
+                            return;
+                        }
+                        
+                        const storageString = formatStorageForDisplay(filteredData);
+                        displayStorage(storageString);
+                        
+                        const totalCount = Object.keys(storageData).length;
+                        const filteredCount = Object.keys(filteredData).length;
+                        const filteredOutCount = totalCount - filteredCount;
+                        
+                        let statusMsg = `成功获取 ${filteredCount} 个LocalStorage项`;
+                        if (filteredOutCount > 0) {
+                            statusMsg += ` (已过滤 ${filteredOutCount} 个超长项)`;
+                        }
+                        showStatus(statusMsg, 'success');
+                    } else {
+                        showStatus('当前页面没有LocalStorage数据', 'info');
+                    }
+                });
+        } else {
+            showStatus('没有找到活动标签页', 'error');
+        }
+    });
+}
+
+/**
+ * 切换指定Storage输入框的显示
+ */
+function toggleSpecificStorageInput() {
+    const inputGroup = document.getElementById('specificStorageInput');
+    inputGroup.classList.toggle('hidden');
+    
+    if (!inputGroup.classList.contains('hidden')) {
+        document.getElementById('storageKey').focus();
+    }
+}
+
+/**
+ * 获取指定的LocalStorage项
+ */
+function getSpecificStorage() {
+    const storageKey = document.getElementById('storageKey').value.trim();
+    
+    if (!storageKey) {
+        showStatus('请输入Storage键名', 'error');
+        return;
+    }
+    
+    showStatus('正在获取指定LocalStorage...', 'info');
+    
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (tabs[0]) {
+            const urlInfo = parseTabUrl(tabs[0]);
+            if (!urlInfo.isValid) {
+                showStatus(urlInfo.error, 'error');
+                return;
+            }
+            
+            if (urlInfo.isSpecialPage) {
+                showStatus('无法在特殊页面获取LocalStorage', 'info');
+                return;
+            }
+            
+            // 注入内容脚本获取指定localStorage
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                func: extractSpecificLocalStorage,
+                args: [storageKey]
+            }, function(results) {
+                    if (chrome.runtime.lastError) {
+                        showStatus('获取LocalStorage失败: ' + chrome.runtime.lastError.message, 'error');
+                        return;
+                    }
+                    
+                    if (results && results[0] && results[0].result !== null) {
+                        const value = results[0].result;
+                        const maxLength = getMaxValueLength();
+                        
+                        if (value.length > maxLength) {
+                            showStatus(`Storage项 "${storageKey}" 的值长度 (${value.length}) 超过设置的最大长度 (${maxLength})，已被过滤`, 'info');
+                            return;
+                        }
+                        
+                        const storageData = { [storageKey]: value };
+                        const storageString = formatStorageForDisplay(storageData);
+                        displayStorage(storageString);
+                        showStatus(`成功获取Storage项 "${storageKey}"`, 'success');
+                    } else {
+                        showStatus(`没有找到名为 "${storageKey}" 的LocalStorage项`, 'info');
+                    }
+                });
+        } else {
+            showStatus('没有找到活动标签页', 'error');
+        }
+    });
+}
+
+/**
+ * 复制Storage到剪贴板
+ */
+function copyStorageToClipboard() {
+    const display = document.getElementById('storageDisplay');
+    const storageString = display.getAttribute('data-storage-string');
+    
+    if (!storageString) {
+        showStatus('没有可复制的Storage数据', 'error');
+        return;
+    }
+    
+    // 创建临时文本区域来复制
+    const textarea = document.createElement('textarea');
+    textarea.value = storageString;
+    document.body.appendChild(textarea);
+    textarea.select();
+    
+    try {
+        document.execCommand('copy');
+        showStatus('Storage数据已复制到剪贴板', 'success');
+    } catch (err) {
+        showStatus('复制失败: ' + err.message, 'error');
+    }
+    
+    document.body.removeChild(textarea);
+}
+
+/**
+ * 清空Storage显示
+ */
+function clearStorageDisplay() {
+    const display = document.getElementById('storageDisplay');
+    const actions = document.getElementById('storageActions');
+    
+    display.textContent = '';
+    display.classList.add('hidden');
+    actions.classList.add('hidden');
+    display.removeAttribute('data-storage-string');
+}
+
+/**
+ * 显示Storage数据
+ * @param {string} storageString - Storage字符串
+ */
+function displayStorage(storageString) {
+    const display = document.getElementById('storageDisplay');
+    const actions = document.getElementById('storageActions');
+    
+    display.textContent = storageString;
+    display.classList.remove('hidden');
+    actions.classList.remove('hidden');
+    
+    // 保存Storage字符串到data属性，便于复制
+    display.setAttribute('data-storage-string', storageString);
+}
+
+/**
+ * 格式化Storage数据用于显示
+ * @param {Object} storageData - Storage数据对象
+ * @returns {string} 格式化后的Storage字符串
+ */
+function formatStorageForDisplay(storageData) {
+    return Object.entries(storageData).map(([key, value]) => {
+        // 如果值太长，截断显示
+        const displayValue = value.length > 100 ? value.substring(0, 100) + '...' : value;
+        return `${key}: ${displayValue}`;
+    }).join('\n');
+}
+
+/**
+ * 根据长度过滤Storage数据
+ * @param {Object} storageData - 原始Storage数据
+ * @param {number} maxLength - 最大长度
+ * @returns {Object} 过滤后的Storage数据
+ */
+function filterStorageByLength(storageData, maxLength) {
+    const filtered = {};
+    for (const [key, value] of Object.entries(storageData)) {
+        if (value.length <= maxLength) {
+            filtered[key] = value;
+        }
+    }
+    return filtered;
+}
+
+/**
+ * 获取最大值长度设置
+ * @returns {number} 最大长度
+ */
+function getMaxValueLength() {
+    const input = document.getElementById('maxValueLength');
+    const value = parseInt(input.value) || 500;
+    
+    // 保存设置
+    chrome.storage.local.set({ maxValueLength: value });
+    
+    return value;
+}
+
+/**
+ * 加载Storage设置
+ */
+function loadStorageSettings() {
+    chrome.storage.local.get(['maxValueLength'], function(result) {
+        if (result.maxValueLength) {
+            document.getElementById('maxValueLength').value = result.maxValueLength;
+        }
+    });
+}
+
+// ==================== 内容脚本函数 ====================
+
+/**
+ * 提取所有LocalStorage数据 (在页面上下文中执行)
+ * @returns {Object} LocalStorage数据对象
+ */
+function extractAllLocalStorage() {
+    const storage = {};
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+                storage[key] = localStorage.getItem(key) || '';
+            }
+        }
+    } catch (error) {
+        console.error('获取localStorage失败:', error);
+    }
+    return storage;
+}
+
+/**
+ * 提取指定的LocalStorage项 (在页面上下文中执行)
+ * @param {string} key - 要获取的键名
+ * @returns {string|null} 对应的值或null
+ */
+function extractSpecificLocalStorage(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch (error) {
+        console.error('获取localStorage失败:', error);
+        return null;
+    }
+}
+
+// 监听指定Storage输入框的回车键
+document.addEventListener('DOMContentLoaded', function() {
+    const storageKeyInput = document.getElementById('storageKey');
+    if (storageKeyInput) {
+        storageKeyInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                getSpecificStorage();
+            }
+        });
+    }
+    
+    // 监听最大长度设置变化
+    const maxLengthInput = document.getElementById('maxValueLength');
+    if (maxLengthInput) {
+        maxLengthInput.addEventListener('change', function() {
+            const value = parseInt(this.value) || 500;
+            chrome.storage.local.set({ maxValueLength: value });
+        });
     }
 });
