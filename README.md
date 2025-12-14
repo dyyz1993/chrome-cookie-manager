@@ -117,20 +117,20 @@ curl http://localhost:5000/health
 
 镜像地址 | Image URL:
 ```
-ghcr.io/dyyz1993/chrome-cookie-manager:latest
+ghcr.io/dyyz1993/cookie-manager-server:latest
 ```
 
 #### 拉取特定版本镜像 | Pulling Specific Version Images
 
 ```bash
 # 拉取最新版本
-docker pull ghcr.io/dyyz1993/chrome-cookie-manager:latest
+docker pull ghcr.io/dyyz1993/cookie-manager-server:latest
 
 # 拉取特定版本
-docker pull ghcr.io/dyyz1993/chrome-cookie-manager:v1.2.0
+docker pull ghcr.io/dyyz1993/cookie-manager-server:v1.2.0
 
 # 拉取主分支版本
-docker pull ghcr.io/dyyz1993/chrome-cookie-manager:master
+docker pull ghcr.io/dyyz1993/cookie-manager-server:master
 ```
 
 #### Docker配置说明 | Docker Configuration

@@ -117,20 +117,20 @@ We use GitHub Container Registry (GHCR) to host Docker images, providing the fol
 
 Image URL | 镜像地址:
 ```
-ghcr.io/dyyz1993/chrome-cookie-manager:latest
+ghcr.io/dyyz1993/cookie-manager-server:latest
 ```
 
 #### Pulling Specific Version Images | 拉取特定版本镜像
 
 ```bash
 # Pull latest version
-docker pull ghcr.io/dyyz1993/chrome-cookie-manager:latest
+docker pull ghcr.io/dyyz1993/cookie-manager-server:latest
 
 # Pull specific version
-docker pull ghcr.io/dyyz1993/chrome-cookie-manager:v1.2.0
+docker pull ghcr.io/dyyz1993/cookie-manager-server:v1.2.0
 
 # Pull master branch version
-docker pull ghcr.io/dyyz1993/chrome-cookie-manager:master
+docker pull ghcr.io/dyyz1993/cookie-manager-server:master
 ```
 
 #### Docker Configuration | Docker配置说明
