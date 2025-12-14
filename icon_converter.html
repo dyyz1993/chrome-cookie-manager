@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SVG to PNG Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            margin: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>SVG to PNG Converter</h1>
+    <p>点击下面的按钮下载不同尺寸的PNG图标</p>
+    
+    <button onclick="downloadIcon(16)">下载 16x16</button>
+    <button onclick="downloadIcon(32)">下载 32x32</button>
+    <button onclick="downloadIcon(48)">下载 48x48</button>
+    <button onclick="downloadIcon(128)">下载 128x128</button>
+    
+    <div style="display: none;">
+        <svg id="icon-svg" width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="cookieGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#D4A574;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#8B5A2B;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          
+          <!-- Cookie Base -->
+          <circle cx="64" cy="64" r="50" fill="url(#cookieGradient)" />
+          
+          <!-- Cookie Bites -->
+          <circle cx="45" cy="45" r="8" fill="#5D4037" />
+          <circle cx="83" cy="50" r="6" fill="#5D4037" />
+          <circle cx="70" cy="75" r="7" fill="#5D4037" />
+          <circle cx="50" cy="80" r="5" fill="#5D4037" />
+          <circle cx="85" cy="85" r="6" fill="#5D4037" />
+          
+          <!-- Cookie Bite Mark -->
+          <path d="M 95 35 A 12 12 0 0 1 105 45 A 12 12 0 0 1 95 55 A 12 12 0 0 1 85 45 A 12 12 0 0 1 95 35" fill="#FFFFFF" />
+          
+          <!-- Highlight -->
+          <ellipse cx="50" cy="50" rx="15" ry="10" fill="#FFFFFF" opacity="0.3" transform="rotate(-45 50 50)" />
+        </svg>
+    </div>
+    
+    <script>
+        function downloadIcon(size) {
+            const svg = document.getElementById('icon-svg');
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            canvas.width = size;
+            canvas.height = size;
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                canvas.toBlob(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `icon${size}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+            };
+            
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        }
+    </script>
+</body>
+</html>
