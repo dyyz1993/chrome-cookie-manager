@@ -60,7 +60,7 @@ jobs:
         
     - name: Generate SBOM
       id: generate_sbom
-      run: echo "SBOM_IMAGE_TAG=${{ steps.meta.outputs.tags[0] }}" >> $GITHUB_OUTPUT
+      run: echo "SBOM_IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)" >> $GITHUB_OUTPUT
 
     - name: Run SBOM action
       uses: anchore/sbom-action@v0
