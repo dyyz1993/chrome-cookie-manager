@@ -100,20 +100,55 @@ class SyncManager {
         }
     }
 
+    /**
+     * 验证用户Pass ID是否存在
+     * @returns {Promise<boolean>} Pass ID是否存在
+     */
     async validateUserPass() {
-        if (!this.config.userPass) return false;
+        if (!this.config.userPass) {
+            console.log('没有配置Pass ID');
+            return false;
+        }
         
         try {
             const response = await fetch(`${this.config.serverUrl}/api/pass/${this.config.userPass}/check`);
             if (response.ok) {
                 const data = await response.json();
+                console.log(`Pass ID验证结果:`, data.exists);
                 return data.exists;
+            } else {
+                console.warn(`Pass ID验证失败: ${response.status}`);
+                return false;
             }
-            return false;
         } catch (error) {
             console.error('验证用户Pass失败:', error);
             return false;
         }
+    }
+
+    /**
+     * 确保用户Pass ID存在，如果不存在则自动创建
+     * @returns {Promise<string>} 有效的Pass ID
+     */
+    async ensureUserPassExists() {
+        // 如果没有Pass ID，直接创建
+        if (!this.config.userPass) {
+            console.log('没有Pass ID，正在创建新的...');
+            return await this.createUserPass();
+        }
+        
+        // 验证现有Pass ID是否存在
+        const isValid = await this.validateUserPass();
+        if (isValid) {
+            console.log('现有Pass ID有效');
+            return this.config.userPass;
+        }
+        
+        // Pass ID无效，创建新的
+        console.log('现有Pass ID无效，正在创建新的...');
+        const newPassId = await this.createUserPass();
+        console.log('新Pass ID已创建:', newPassId);
+        return newPassId;
     }
 
     /**

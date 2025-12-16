@@ -1667,18 +1667,16 @@ async function saveServerConfig() {
         const connectionResult = await testServerConnection();
         
         if (connectionResult && connectionResult.success) {
-            // 连接成功，自动创建或获取Pass
-            if (syncManager && !syncManager.config.userPass) {
-                showStatus('正在创建用户标识...', 'info');
+            // 连接成功，确保Pass ID存在
+            if (syncManager) {
+                showStatus('正在验证用户标识...', 'info');
                 try {
-                    const passId = await syncManager.createUserPass();
+                    const passId = await syncManager.ensureUserPassExists();
                     displayUserPass(passId);
-                    showStatus('用户标识创建成功', 'success');
+                    showStatus('用户标识已就绪', 'success');
                 } catch (error) {
-                    showStatus(`创建用户标识失败: ${error.message}`, 'error');
+                    showStatus(`用户标识处理失败: ${error.message}`, 'error');
                 }
-            } else if (syncManager && syncManager.config.userPass) {
-                displayUserPass(syncManager.config.userPass);
             }
         }
         
@@ -1728,6 +1726,17 @@ async function saveDomainConfig() {
         // 如果有同步管理器，更新配置
         if (syncManager) {
             await syncManager.updateDomainConfig(domain, config);
+            
+            // 确保Pass ID存在（切换域名时验证）
+            if (syncManager.config.serverUrl) {
+                try {
+                    await syncManager.ensureUserPassExists();
+                    console.log(`域名 ${domain} 配置保存时，Pass ID 验证通过`);
+                } catch (error) {
+                    console.warn(`域名 ${domain} 配置保存时，Pass ID 验证失败:`, error);
+                    // 不显示错误给用户，因为这不是关键操作
+                }
+            }
         }
         
         showStatus(`域名 ${domain} 配置已保存`, 'success');
