@@ -182,6 +182,10 @@ python app.py
 
 ## 📚 API文档 | API Documentation
 
+**管理后台地址**: [https://cookies.dyyz1993.com/](https://cookies.dyyz1993.com/)
+
+> **注意**: 此地址为共享服务，仅用于管理Pass和查看数据概览。为保护用户隐私，此服务不存储任何敏感数据，且无法查看具体Cookie或LocalStorage内容。请放心使用。
+
 ### 健康检查 | Health Check
 ```http
 GET /health
@@ -199,6 +203,15 @@ POST /api/data/{pass}/{domain}
 GET /api/data/{pass}/{domain}
 DELETE /api/data/{pass}/{domain}
 ```
+
+### 快捷访问 | Quick Access
+```http
+GET /api/quick/{pass_id}?domain={domain}&format={json|html}&key={decrypt_key}
+GET /api/quick-json/{pass_id}?domain={domain}&key={decrypt_key}
+```
+
+- `/api/quick/{pass_id}` - 支持HTML和JSON格式，提供解密界面
+- `/api/quick-json/{pass_id}` - 仅返回JSON格式，无HTML选项
 
 详细API文档请参考：[API Documentation](docs/api.md)
 

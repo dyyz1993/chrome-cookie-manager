@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快捷访问 - Cookie Manager</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .data-section {
+            margin-bottom: 25px;
+        }
+        .data-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .data-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            word-break: break-all;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .encrypted-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .decrypt-section {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .decrypt-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .copy-btn {
+            background: #28a745;
+            font-size: 12px;
+            padding: 5px 10px;
+            margin-left: 10px;
+        }
+        .copy-btn:hover {
+            background: #1e7e34;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 14px;
+        }
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .success {
+            color: #155724;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍪 Cookie 快捷访问</h1>
+            <p>Pass ID: {{ pass_id }}</p>
+        </div>
+
+        {% if data %}
+            {% if data.encrypted %}
+                <div class="encrypted-notice">
+                    <strong>⚠️ 数据已加密</strong><br>
+                    此数据使用密码进行了加密，需要输入正确的密码才能查看内容。
+                </div>
+
+                <div class="decrypt-section">
+                    <div class="data-title">🔓 解密数据</div>
+                    <input type="password" id="decryptPassword" class="decrypt-input" placeholder="请输入解密密码">
+                    <button class="btn" onclick="decryptData()">解密</button>
+                    <button class="btn copy-btn" onclick="copyDecryptScript()">复制解密脚本</button>
+                    <div id="decryptResult"></div>
+                </div>
+
+                <div class="data-section">
+                    <div class="data-title">🔒 加密数据 (Base64)</div>
+                    <div class="data-content" id="encryptedData">{{ data.encrypted }}</div>
+                </div>
+            {% else %}
+                {% if data.cookies %}
+                    <div class="data-section">
+                        <div class="data-title">🍪 Cookies</div>
+                        <div class="data-content">{{ data.cookies | tojson(indent=2) }}</div>
+                    </div>
+                {% endif %}
+
+                {% if data.localStorage %}
+                    <div class="data-section">
+                        <div class="data-title">💾 Local Storage</div>
+                        <div class="data-content">{{ data.localStorage | tojson(indent=2) }}</div>
+                    </div>
+                {% endif %}
+
+                {% if data.sessionStorage %}
+                    <div class="data-section">
+                        <div class="data-title">📋 Session Storage</div>
+                        <div class="data-content">{{ data.sessionStorage | tojson(indent=2) }}</div>
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            {% if data.metadata %}
+                <div class="data-section">
+                    <div class="data-title">📊 元数据</div>
+                    <div class="data-content">
+                        创建时间: {{ data.metadata.created_at }}<br>
+                        域名: {{ data.metadata.domain }}<br>
+                        {% if data.metadata.expires_at %}
+                        过期时间: {{ data.metadata.expires_at }}<br>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="error">
+                ❌ 未找到数据或 Pass ID 无效
+            </div>
+        {% endif %}
+
+        <div class="footer">
+            <p>
+                <a href="/api/quick/{{ pass_id }}?format=json" target="_blank">查看 JSON 格式</a> |
+                <a href="/docs" target="_blank">API 文档</a>
+            </p>
+            <p>Generated by Chrome Cookie Manager</p>
+        </div>
+    </div>
+
+    <script>
+        // AES 解密函数
+        async function aesDecrypt(encryptedData, password) {
+            try {
+                // 将 Base64 数据转换为字节数组
+                const encryptedBytes = new Uint8Array(atob(encryptedData).split('').map(c => c.charCodeAt(0)));
+                
+                // 从加密数据中提取 salt 和 IV
+                const salt = encryptedBytes.slice(8, 16);
+                const iv = encryptedBytes.slice(16, 32);
+                const ciphertext = encryptedBytes.slice(32);
+                
+                // 使用密码和 salt 派生密钥
+                const passwordBytes = new TextEncoder().encode(password);
+                const keyMaterial = await crypto.subtle.importKey(
+                    'raw',
+                    passwordBytes,
+                    { name: 'PBKDF2' },
+                    false,
+                    ['deriveBits', 'deriveKey']
+                );
+                
+                const key = await crypto.subtle.deriveKey(
+                    {
+                        name: 'PBKDF2',
+                        salt: salt,
+                        iterations: 100000,
+                        hash: 'SHA-256'
+                    },
+                    keyMaterial,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['decrypt']
+                );
+                
+                // 解密数据
+                const decryptedBytes = await crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: iv },
+                    key,
+                    ciphertext
+                );
+                
+                // 转换为字符串并解析 JSON
+                const decryptedText = new TextDecoder().decode(decryptedBytes);
+                return JSON.parse(decryptedText);
+            } catch (error) {
+                throw new Error('解密失败: ' + error.message);
+            }
+        }
+
+        // 解密数据
+        async function decryptData() {
+            const password = document.getElementById('decryptPassword').value;
+            const encryptedData = document.getElementById('encryptedData').textContent;
+            const resultDiv = document.getElementById('decryptResult');
+            
+            if (!password) {
+                resultDiv.innerHTML = '<div class="error">请输入密码</div>';
+                return;
+            }
+            
+            try {
+                const decryptedData = await aesDecrypt(encryptedData, password);
+                
+                let html = '<div class="success">✅ 解密成功！</div>';
+                
+                if (decryptedData.cookies) {
+                    html += '<div class="data-section"><div class="data-title">🍪 Cookies</div><div class="data-content">' + 
+                           JSON.stringify(decryptedData.cookies, null, 2) + '</div></div>';
+                }
+                
+                if (decryptedData.localStorage) {
+                    html += '<div class="data-section"><div class="data-title">💾 Local Storage</div><div class="data-content">' + 
+                           JSON.stringify(decryptedData.localStorage, null, 2) + '</div></div>';
+                }
+                
+                if (decryptedData.sessionStorage) {
+                    html += '<div class="data-section"><div class="data-title">📋 Session Storage</div><div class="data-content">' + 
+                           JSON.stringify(decryptedData.sessionStorage, null, 2) + '</div></div>';
+                }
+                
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">' + error.message + '</div>';
+            }
+        }
+
+        // 复制解密脚本
+        function copyDecryptScript() {
+            const script = `// AES 解密脚本 - 可在其他页面使用
+async function aesDecrypt(encryptedData, password) {
+    try {
+        const encryptedBytes = new Uint8Array(atob(encryptedData).split('').map(c => c.charCodeAt(0)));
+        const salt = encryptedBytes.slice(8, 16);
+        const iv = encryptedBytes.slice(16, 32);
+        const ciphertext = encryptedBytes.slice(32);
+        
+        const passwordBytes = new TextEncoder().encode(password);
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw', passwordBytes, { name: 'PBKDF2' }, false, ['deriveBits', 'deriveKey']
+        );
+        
+        const key = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' },
+            keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+        );
+        
+        const decryptedBytes = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: iv }, key, ciphertext
+        );
+        
+        const decryptedText = new TextDecoder().decode(decryptedBytes);
+        return JSON.parse(decryptedText);
+    } catch (error) {
+        throw new Error('解密失败: ' + error.message);
+    }
+}
+
+// 使用示例:
+// const encryptedData = '这里是加密的Base64数据';
+// const password = '你的密码';
+// aesDecrypt(encryptedData, password).then(data => console.log(data));`;
+            
+            navigator.clipboard.writeText(script).then(() => {
+                alert('解密脚本已复制到剪贴板！');
+            }).catch(() => {
+                // 降级方案
+                const textArea = document.createElement('textarea');
+                textArea.value = script;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('解密脚本已复制到剪贴板！');
+            });
+        }
+
+        // 回车键解密
+        document.getElementById('decryptPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                decryptData();
+            }
+        });
+    </script>
+</body>
+</html>

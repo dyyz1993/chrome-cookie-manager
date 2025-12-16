@@ -1097,11 +1097,166 @@ class QuickAccess(Resource):
                 return f'<h1>Error: {str(e)}</h1>', 500
             return jsonify({'error': str(e)}), 500
 
+# 纯JSON格式的快捷访问路由
+@ns_quick.route('/json/<string:pass_id>')
+class QuickAccessJSON(Resource):
+    @ns_quick.doc('quick_access_json')
+    @ns_quick.param('domain', '域名', required=True)
+    @ns_quick.param('key', '解密密钥（可选）')
+    @ns_quick.response(200, '成功获取数据')
+    @ns_quick.response(400, '请求参数错误')
+    @ns_quick.response(404, '未找到数据')
+    @ns_quick.response(500, '服务器内部错误')
+    def get(self, pass_id):
+        """快捷访问 - 仅返回JSON格式（无HTML格式选项）"""
+        try:
+            domain = request.args.get('domain')
+            if not domain:
+                return jsonify({'error': 'Missing domain parameter'}), 400
+                
+            decrypt_key = request.args.get('key', '')
+            
+            with get_db() as conn:
+                data_entry = conn.execute('''
+                    SELECT data, created_at FROM data_entries
+                    WHERE pass_id = ? AND domain = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ''', (pass_id, domain)).fetchone()
+                
+                if not data_entry:
+                    return jsonify({'error': 'No data found'}), 404
+                    
+                data_json = data_entry['data']
+                timestamp = data_entry['created_at']
+                
+                # 尝试解析JSON数据
+                try:
+                    data = json.loads(data_json)
+                except json.JSONDecodeError:
+                    return jsonify({'error': 'Invalid data format'}), 500
+                
+                # 如果数据未加密，直接返回
+                if not data.get('encrypted'):
+                    return jsonify({
+                        'pass_id': pass_id,
+                        'domain': domain,
+                        'timestamp': timestamp,
+                        'data': data
+                    })
+                
+                # 数据已加密，尝试解密
+                encrypted_data = data['encrypted']
+                
+                # 如果提供了解密密钥，尝试服务端解密
+                if decrypt_key:
+                    try:
+                        decrypted_data = server_decrypt(encrypted_data, decrypt_key)
+                        if decrypted_data:
+                            return jsonify({
+                                'pass_id': pass_id,
+                                'domain': domain,
+                                'timestamp': timestamp,
+                                'data': decrypted_data,
+                                'decrypted': True
+                            })
+                    except Exception:
+                        pass  # 解密失败，返回加密数据
+                
+                # 返回加密数据
+                return jsonify({
+                    'pass_id': pass_id,
+                    'domain': domain,
+                    'timestamp': timestamp,
+                    'data': data,
+                    'encrypted': True,
+                    'decrypted': False
+                })
+                
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
 # 保持原有端点的向后兼容性
 @app.route('/api/quick/<pass_id>')
 def quick_access_legacy(pass_id):
     """快捷访问 - 支持HTML和JSON格式，服务端解密（向后兼容）"""
     return QuickAccess().get(pass_id)
+
+
+
+# 纯JSON格式的快捷访问入口（移除format参数）
+@app.route('/api/quick-json/<pass_id>')
+def quick_access_json_only(pass_id):
+    """快捷访问 - 仅返回JSON格式（无HTML格式选项）"""
+    # 导入 QuickAccessJSON 类（在 ns_quick 命名空间中定义）
+    from flask import current_app
+    # 直接调用处理逻辑，避免循环导入
+    try:
+        domain = request.args.get('domain')
+        if not domain:
+            return jsonify({'error': 'Missing domain parameter'}), 400
+            
+        decrypt_key = request.args.get('key', '')
+        
+        with get_db() as conn:
+            data_entry = conn.execute('''
+                SELECT data, created_at FROM data_entries
+                WHERE pass_id = ? AND domain = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            ''', (pass_id, domain)).fetchone()
+            
+            if not data_entry:
+                return jsonify({'error': 'No data found'}), 404
+                
+            data_json = data_entry['data']
+            timestamp = data_entry['created_at']
+            
+            # 尝试解析JSON数据
+            try:
+                data = json.loads(data_json)
+            except json.JSONDecodeError:
+                return jsonify({'error': 'Invalid data format'}), 500
+            
+            # 如果数据未加密，直接返回
+            if not data.get('encrypted'):
+                return jsonify({
+                    'pass_id': pass_id,
+                    'domain': domain,
+                    'timestamp': timestamp,
+                    'data': data
+                })
+            
+            # 数据已加密，尝试解密
+            encrypted_data = data['encrypted']
+            
+            # 如果提供了解密密钥，尝试服务端解密
+            if decrypt_key:
+                try:
+                    decrypted_data = server_decrypt(encrypted_data, decrypt_key)
+                    if decrypted_data:
+                        return jsonify({
+                            'pass_id': pass_id,
+                            'domain': domain,
+                            'timestamp': timestamp,
+                            'data': decrypted_data,
+                            'decrypted': True
+                        })
+                except Exception:
+                    pass  # 解密失败，返回加密数据
+            
+            # 返回加密数据
+            return jsonify({
+                'pass_id': pass_id,
+                'domain': domain,
+                'timestamp': timestamp,
+                'data': data,
+                'encrypted': True,
+                'decrypted': False
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # 统计相关的命名空间
 ns_stats = api.namespace('stats', description='统计信息')
