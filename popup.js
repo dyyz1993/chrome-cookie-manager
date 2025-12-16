@@ -1709,16 +1709,25 @@ async function saveServerConfig() {
             if (syncManager) {
                 showStatus('正在验证用户标识...', 'info');
                 try {
-                    const passId = await syncManager.ensureUserPassExists();
-                    displayUserPass(passId);
-                    showStatus('用户标识已就绪', 'success');
+                    let passId = await syncManager.ensureUserPassExists();
+                    // 如果ensureUserPassExists返回undefined，尝试从syncManager.config中获取
+                    if (!passId && syncManager.config.userPass) {
+                        passId = syncManager.config.userPass;
+                    }
                     
-                    // 重要：重新保存配置以确保userPass包含在localStorage中
-                    const updatedConfig = await chrome.storage.local.get(['syncConfig']);
-                    if (updatedConfig.syncConfig) {
-                        updatedConfig.syncConfig.userPass = passId;
-                        await chrome.storage.local.set({ syncConfig: updatedConfig.syncConfig });
-                        console.log('Pass ID已保存到localStorage:', passId);
+                    if (passId) {
+                        displayUserPass(passId);
+                        showStatus('用户标识已就绪', 'success');
+                        
+                        // 重要：重新保存配置以确保userPass包含在localStorage中
+                        const updatedConfig = await chrome.storage.local.get(['syncConfig']);
+                        if (updatedConfig.syncConfig) {
+                            updatedConfig.syncConfig.userPass = passId;
+                            await chrome.storage.local.set({ syncConfig: updatedConfig.syncConfig });
+                            console.log('Pass ID已保存到localStorage:', passId);
+                        }
+                    } else {
+                        showStatus('用户标识生成失败或未获取到', 'error');
                     }
                 } catch (error) {
                     showStatus(`用户标识处理失败: ${error.message}`, 'error');
@@ -2481,9 +2490,23 @@ function displayUserPass(passId) {
     const userPassSection = document.getElementById('userPassSection');
     const userPassDisplay = document.getElementById('userPassDisplay');
     
+    // 调试日志：确认函数调用情况
+    console.log('displayUserPass函数被调用:', {
+        passId: passId,
+        userPassSectionExists: !!userPassSection,
+        userPassDisplayExists: !!userPassDisplay,
+        currentDisplayText: userPassDisplay ? userPassDisplay.textContent : '元素不存在'
+    });
+    
     if (userPassSection && userPassDisplay) {
         userPassDisplay.textContent = passId;
         userPassSection.style.display = 'block';
+        console.log('Pass ID已设置到界面:', passId);
+    } else {
+        console.error('Pass ID显示元素不存在:', {
+            userPassSectionExists: !!userPassSection,
+            userPassDisplayExists: !!userPassDisplay
+        });
     }
 }
 

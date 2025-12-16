@@ -43,6 +43,7 @@ class SyncManager {
      * 服务器配置管理
      */
     async updateServerConfig(config) {
+        // 合并配置，确保保留已有的userPass，除非新配置明确提供了userPass
         this.config = { ...this.config, ...config };
         
         if (typeof chrome !== 'undefined' && chrome.storage) {
@@ -50,7 +51,7 @@ class SyncManager {
         }
         
         // 如果没有Pass ID，自动创建一个
-        if (config.serverUrl && !this.config.userPass) {
+        if (this.config.serverUrl && !this.config.userPass) {
             await this.createUserPass();
         }
     }
