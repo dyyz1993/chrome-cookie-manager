@@ -59,13 +59,9 @@ jobs:
         platforms: linux/amd64,linux/arm64
         
     - name: Generate SBOM
-      id: generate_sbom
-      run: echo "SBOM_IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)" >> $GITHUB_OUTPUT
-
-    - name: Run SBOM action
       uses: anchore/sbom-action@v0
       with:
-        image: ${{ steps.generate_sbom.outputs.SBOM_IMAGE_TAG }}
+        image: ${{ steps.meta.outputs.tags }}
         format: spdx-json
         output-file: sbom.spdx.json
         
