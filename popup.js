@@ -1712,6 +1712,14 @@ async function saveServerConfig() {
                     const passId = await syncManager.ensureUserPassExists();
                     displayUserPass(passId);
                     showStatus('用户标识已就绪', 'success');
+                    
+                    // 重要：重新保存配置以确保userPass包含在localStorage中
+                    const updatedConfig = await chrome.storage.local.get(['syncConfig']);
+                    if (updatedConfig.syncConfig) {
+                        updatedConfig.syncConfig.userPass = passId;
+                        await chrome.storage.local.set({ syncConfig: updatedConfig.syncConfig });
+                        console.log('Pass ID已保存到localStorage:', passId);
+                    }
                 } catch (error) {
                     showStatus(`用户标识处理失败: ${error.message}`, 'error');
                 }
