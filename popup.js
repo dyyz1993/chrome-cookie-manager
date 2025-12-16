@@ -1006,6 +1006,9 @@ function checkPermissionsAndShowStatus(domain) {
                 permissionGroup.classList.add('hidden');
                 console.log('已有权限，隐藏申请权限按钮组');
             }
+            
+            // 自动启用同步选项（如果尚未配置）
+            autoEnableSyncOptions(domain);
         } else {
             showStatus('需要申请权限才能访问Cookie', 'info');
             
@@ -1019,6 +1022,45 @@ function checkPermissionsAndShowStatus(domain) {
             }
         }
     });
+}
+
+/**
+ * 自动启用同步选项（如果尚未配置）
+ * @param {string} domain - 域名
+ */
+async function autoEnableSyncOptions(domain) {
+    try {
+        // 获取当前域名配置
+        const domainConfigs = await chrome.storage.local.get(['domainConfigs']);
+        let config = domainConfigs.domainConfigs?.[domain] || {};
+        
+        // 如果两个同步选项都未启用，则自动启用
+        if (!config.enableCookieSync && !config.enableStorageSync) {
+            config.enableCookieSync = true;
+            config.enableStorageSync = true;
+            
+            // 保存配置
+            domainConfigs.domainConfigs = domainConfigs.domainConfigs || {};
+            domainConfigs.domainConfigs[domain] = config;
+            await chrome.storage.local.set({ domainConfigs });
+            
+            // 更新界面显示
+            const enableCookieSyncInput = document.getElementById('enableCookieSync');
+            const enableStorageSyncInput = document.getElementById('enableStorageSync');
+            
+            if (enableCookieSyncInput) {
+                enableCookieSyncInput.checked = true;
+            }
+            if (enableStorageSyncInput) {
+                enableStorageSyncInput.checked = true;
+            }
+            
+            console.log('已自动启用同步选项:', domain);
+            showStatus('已自动启用Cookie和LocalStorage同步', 'success');
+        }
+    } catch (error) {
+        console.error('自动启用同步选项失败:', error);
+    }
 }
 
 /**

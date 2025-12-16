@@ -4,7 +4,7 @@ Cookie Manager 开放式服务器
 简单的数据存储服务，支持Pass系统和加密数据存储
 """
 
-from flask import Flask, request, jsonify, render_template_string, render_template, session, redirect, url_for
+from flask import Flask, request, jsonify, render_template_string, render_template, session, redirect, url_for, make_response, Response
 from flask_cors import CORS
 from flask_restx import Api, Resource, fields, Namespace
 import sqlite3
@@ -410,6 +410,7 @@ def render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_ke
                     🔒 Encrypted data (no decryption key provided)
                 {% endif %}
             </p>
+            <p><strong>📊 JSON数据:</strong> <a href="{{ request.url.replace('&format=html', '').replace('?format=html', '') }}" target="_blank" style="color: #007bff; text-decoration: none;">🔗 查看JSON格式</a></p>
         </div>
         
         <div class="data-box">
@@ -422,7 +423,119 @@ def render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_ke
             <h3>🔓 Decrypted Data:</h3>
             <div id="decrypted-data">Decrypting...</div>
         </div>
+        {% endif %}
+        
         <script>
+            // 前端解密功能
+            function decryptWithKey() {
+                const key = document.getElementById('decrypt-key-input').value;
+                if (!key) {
+                    alert('请输入解密密钥');
+                    return;
+                }
+                
+                const encryptedData = '{{ data }}';
+                const decrypted = decrypt(encryptedData, key);
+                
+                if (decrypted) {
+                    let html = '<div style="background: #e8f5e8; padding: 15px; border-radius: 5px; border: 1px solid #28a745;">';
+                    html += '<h4 style="color: #28a745; margin-top: 0;">✅ 解密成功!</h4>';
+                    
+                    if (decrypted.cookies && Object.keys(decrypted.cookies).length > 0) {
+                        html += '<h5>🍪 Cookies (' + Object.keys(decrypted.cookies).length + ' items):</h5>';
+                        html += '<div style="background: white; padding: 10px; border-radius: 3px; margin: 5px 0; max-height: 200px; overflow-y: auto;">';
+                        for (const [name, value] of Object.entries(decrypted.cookies)) {
+                            html += '<div class="item"><span class="key">' + escapeHtml(name) + ':</span> <span class="value">' + escapeHtml(value) + '</span></div>';
+                        }
+                        html += '</div>';
+                    }
+                    
+                    if (decrypted.localStorage && Object.keys(decrypted.localStorage).length > 0) {
+                        html += '<h5>💾 LocalStorage (' + Object.keys(decrypted.localStorage).length + ' items):</h5>';
+                        html += '<div style="background: white; padding: 10px; border-radius: 3px; margin: 5px 0; max-height: 200px; overflow-y: auto;">';
+                        for (const [key, value] of Object.entries(decrypted.localStorage)) {
+                            const displayValue = value.length > 100 ? value.substring(0, 100) + '... (' + value.length + ' chars)' : value;
+                            html += '<div class="item"><span class="key">' + escapeHtml(key) + ':</span> <span class="value">' + escapeHtml(displayValue) + '</span></div>';
+                        }
+                        html += '</div>';
+                    }
+                    
+                    if (decrypted.timestamp) {
+                        html += '<div style="color: #666; font-size: 12px; margin-top: 10px;">📅 Data Timestamp: ' + new Date(decrypted.timestamp).toLocaleString() + '</div>';
+                    }
+                    
+                    html += '</div>';
+                    html += '<details style="margin-top: 15px;"><summary>📄 Raw JSON Data</summary>';
+                    html += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; max-height: 300px; overflow-y: auto;">' + 
+                            JSON.stringify(decrypted, null, 2) + '</pre></details>';
+                    
+                    document.getElementById('manual-decrypted-data').innerHTML = html;
+                } else {
+                    document.getElementById('manual-decrypted-data').innerHTML = 
+                        '<div style="background: #f8d7da; padding: 15px; border-radius: 5px; border: 1px solid #f5c6cb;"><p style="color: #721c24; margin: 0;">❌ 解密失败: 密钥错误或数据损坏</p></div>';
+                }
+            }
+            
+            function copyDecryptionScript() {
+                const script = `// 解密脚本 - 可在其他地方使用
+function safeBase64Decode(str) {
+    try {
+        return decodeURIComponent(escape(atob(str)));
+    } catch (error) {
+        console.error('Base64解码失败:', error);
+        return str;
+    }
+}
+
+function xorDecrypt(encryptedText, key) {
+    let result = '';
+    for (let i = 0; i < encryptedText.length; i++) {
+        const textChar = encryptedText.charCodeAt(i);
+        const keyChar = key.charCodeAt(i % key.length);
+        result += String.fromCharCode(textChar ^ keyChar);
+    }
+    return result;
+}
+
+function decrypt(encryptedData, key) {
+    try {
+        const encrypted = safeBase64Decode(encryptedData);
+        const jsonStr = xorDecrypt(encrypted, key);
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        console.error('解密失败:', error);
+        return null;
+    }
+}
+
+// 使用示例:
+const encryptedData = '{{ data }}';
+const key = 'YOUR_ENCRYPTION_KEY'; // 替换为你的密钥
+const decrypted = decrypt(encryptedData, key);
+if (decrypted) {
+    console.log('解密成功:', decrypted);
+} else {
+    console.log('解密失败');
+}`;
+                
+                // 创建临时文本区域来复制
+                const textarea = document.createElement('textarea');
+                textarea.value = script;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    alert('解密脚本已复制到剪贴板！');
+                } catch (err) {
+                    document.body.removeChild(textarea);
+                    alert('复制失败，请手动复制以下内容:\\n\\n' + script);
+                }
+            }
+            
             // 客户端解密实现（与客户端保持一致）
             function safeBase64Decode(str) {
                 try {
@@ -507,11 +620,73 @@ def render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_ke
                 document.getElementById('decrypted-data').innerHTML = 
                     '<p style="color: red;">❌ Decryption error: ' + e.message + '</p>';
             }
+            
+            // 如果有密钥，自动解密
+            {% if decrypt_key %}
+            try {
+                const encryptedData = '{{ data }}';
+                const key = '{{ decrypt_key }}';
+                
+                const decrypted = decrypt(encryptedData, key);
+                
+                if (decrypted) {
+                    let html = '<div style="background: #e8f5e8; padding: 15px; border-radius: 5px;">';
+                    
+                    if (decrypted.cookies && Object.keys(decrypted.cookies).length > 0) {
+                        html += '<h4>🍪 Cookies (' + Object.keys(decrypted.cookies).length + ' items):</h4>';
+                        html += '<div style="background: white; padding: 10px; border-radius: 3px; margin: 5px 0;">';
+                        for (const [name, value] of Object.entries(decrypted.cookies)) {
+                            html += '<div class="item"><span class="key">' + escapeHtml(name) + ':</span> <span class="value">' + escapeHtml(value) + '</span></div>';
+                        }
+                        html += '</div>';
+                    }
+                    
+                    if (decrypted.localStorage && Object.keys(decrypted.localStorage).length > 0) {
+                        html += '<h4>💾 LocalStorage (' + Object.keys(decrypted.localStorage).length + ' items):</h4>';
+                        html += '<div style="background: white; padding: 10px; border-radius: 3px; margin: 5px 0;">';
+                        for (const [key, value] of Object.entries(decrypted.localStorage)) {
+                            const displayValue = value.length > 100 ? value.substring(0, 100) + '... (' + value.length + ' chars)' : value;
+                            html += '<div class="item"><span class="key">' + escapeHtml(key) + ':</span> <span class="value">' + escapeHtml(displayValue) + '</span></div>';
+                        }
+                        html += '</div>';
+                    }
+                    
+                    if (decrypted.timestamp) {
+                        html += '<div style="color: #666; font-size: 12px; margin-top: 10px;">📅 Data Timestamp: ' + new Date(decrypted.timestamp).toLocaleString() + '</div>';
+                    }
+                    
+                    html += '</div>';
+                    html += '<details style="margin-top: 15px;"><summary>📄 Raw JSON Data</summary>';
+                    html += '<pre style="background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto;">' + 
+                            JSON.stringify(decrypted, null, 2) + '</pre></details>';
+                    
+                    document.getElementById('decrypted-data').innerHTML = html;
+                } else {
+                    document.getElementById('decrypted-data').innerHTML = 
+                        '<p style="color: red;">❌ Decryption failed: Invalid key or corrupted data</p>';
+                }
+            } catch (e) {
+                document.getElementById('decrypted-data').innerHTML = 
+                    '<p style="color: red;">❌ Decryption error: ' + e.message + '</p>';
+            }
+            {% endif %}
         </script>
-        {% else %}
+        
+        {% if not decrypt_key %}
+        <div class="decrypt-section">
+            <h3>🔓 前端解密工具</h3>
+            <div style="margin-bottom: 15px;">
+                <label for="decrypt-key-input" style="display: block; margin-bottom: 5px; font-weight: bold;">输入解密密钥:</label>
+                <input type="text" id="decrypt-key-input" placeholder="请输入解密密钥" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <button onclick="decryptWithKey()" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">🔓 解密数据</button>
+                <button onclick="copyDecryptionScript()" style="margin-top: 10px; margin-left: 10px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">📋 复制解密脚本</button>
+            </div>
+            <div id="manual-decrypted-data" style="margin-top: 15px;"></div>
+        </div>
+        
         <div class="info" style="background: #fff3cd; border-left: 4px solid #ffc107;">
             <p><strong>🔒 Data is encrypted</strong></p>
-            <p>To decrypt this data, add the <code>key</code> parameter to the URL:</p>
+            <p>或者直接在URL中添加key参数:</p>
             <p><code>{{ request.url }}&key=YOUR_ENCRYPTION_KEY</code></p>
         </div>
         {% endif %}
@@ -1035,7 +1210,7 @@ class QuickAccess(Resource):
                 
                 if not data_entry:
                     if format_type == 'html':
-                        return '<h1>No data found</h1>', 404, {'Content-Type': 'text/html; charset=utf-8'}
+                        return Response('<h1>No data found</h1>', status=404, mimetype='text/html')
                     return jsonify({'error': 'No data found'}), 404
                 
                 encrypted_data = data_entry['data']
@@ -1089,15 +1264,18 @@ class QuickAccess(Resource):
                     # HTML格式 - 如果有解密数据，直接显示；否则显示加密数据和客户端解密界面
                     if decrypted_data:
                         html_content = render_decrypted_html(domain, pass_id, timestamp, decrypted_data)
-                        return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+                        # 使用Flask-RESTX兼容的方式返回HTML
+                        return Response(html_content, status=200, mimetype='text/html')
                     else:
                         html_content = render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_key)
-                        return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+                        # 使用Flask-RESTX兼容的方式返回HTML
+                        return Response(html_content, status=200, mimetype='text/html')
         
         except Exception as e:
             if format_type == 'html':
-                return f'<h1>Error: {str(e)}</h1>', 500, {'Content-Type': 'text/html; charset=utf-8'}
-            return jsonify({'error': str(e)}), 500
+                return Response(f'<h1>Error: {str(e)}</h1>', status=500, mimetype='text/html')
+            else:
+                return jsonify({'error': str(e)}), 500
 
 
 
