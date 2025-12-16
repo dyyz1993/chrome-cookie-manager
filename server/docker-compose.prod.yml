@@ -22,55 +22,8 @@ services:
       - LOG_LEVEL=INFO
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "--max-time", "5", "http://localhost:5000/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
-      start_period: 40s
-    
-  # 可选：添加nginx反向代理
-  nginx:
-    image: nginx:alpine
-    container_name: cookie-manager-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro  # SSL证书目录
-      - ./logs/nginx:/var/log/nginx
-    depends_on:
-      - cookie-manager-server
-    restart: unless-stopped
-    profiles:
-      - full
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # 可选：添加数据库备份服务
-  backup:
-    image: alpine:latest
-    container_name: cookie-manager-backup
-    volumes:
-      - ./data:/data:ro
-      - ./backups:/backups
-    command: |
-      sh -c "
-        apk add --no-cache sqlite
-        while true; do
-          echo 'Creating backup...'
-          sqlite3 /data/database.db '.backup /backups/database-$(date +%Y%m%d-%H%M%S).db'
-          echo 'Backup created'
-          find /backups -name 'database-*.db' -mtime +7 -delete
-          sleep 86400
-        done
-      "
-    depends_on:
-      - cookie-manager-server
-    restart: unless-stopped
-    profiles:
-      - backup
+      start_period: 60s
