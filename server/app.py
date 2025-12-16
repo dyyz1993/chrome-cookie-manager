@@ -1035,7 +1035,7 @@ class QuickAccess(Resource):
                 
                 if not data_entry:
                     if format_type == 'html':
-                        return '<h1>No data found</h1>', 404
+                        return '<h1>No data found</h1>', 404, {'Content-Type': 'text/html; charset=utf-8'}
                     return jsonify({'error': 'No data found'}), 404
                 
                 encrypted_data = data_entry['data']
@@ -1088,13 +1088,15 @@ class QuickAccess(Resource):
                 else:
                     # HTML格式 - 如果有解密数据，直接显示；否则显示加密数据和客户端解密界面
                     if decrypted_data:
-                        return render_decrypted_html(domain, pass_id, timestamp, decrypted_data)
+                        html_content = render_decrypted_html(domain, pass_id, timestamp, decrypted_data)
+                        return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
                     else:
-                        return render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_key)
+                        html_content = render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_key)
+                        return html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
         
         except Exception as e:
             if format_type == 'html':
-                return f'<h1>Error: {str(e)}</h1>', 500
+                return f'<h1>Error: {str(e)}</h1>', 500, {'Content-Type': 'text/html; charset=utf-8'}
             return jsonify({'error': str(e)}), 500
 
 

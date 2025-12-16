@@ -1709,25 +1709,18 @@ async function saveServerConfig() {
             if (syncManager) {
                 showStatus('正在验证用户标识...', 'info');
                 try {
-                    let passId = await syncManager.ensureUserPassExists();
-                    // 如果ensureUserPassExists返回undefined，尝试从syncManager.config中获取
-                    if (!passId && syncManager.config.userPass) {
-                        passId = syncManager.config.userPass;
-                    }
+                    const passId = await syncManager.ensureUserPassExists();
+                    console.log('ensureUserPassExists返回的Pass ID:', passId);
+                    displayUserPass(passId);
+                    showStatus('用户标识已就绪', 'success');
                     
-                    if (passId) {
-                        displayUserPass(passId);
-                        showStatus('用户标识已就绪', 'success');
-                        
-                        // 重要：重新保存配置以确保userPass包含在localStorage中
-                        const updatedConfig = await chrome.storage.local.get(['syncConfig']);
-                        if (updatedConfig.syncConfig) {
-                            updatedConfig.syncConfig.userPass = passId;
-                            await chrome.storage.local.set({ syncConfig: updatedConfig.syncConfig });
-                            console.log('Pass ID已保存到localStorage:', passId);
-                        }
+                    // 重要：使用syncManager的最新配置来确保userPass包含在localStorage中
+                    const latestConfig = syncManager.config;
+                    if (latestConfig && latestConfig.userPass) {
+                        await chrome.storage.local.set({ syncConfig: latestConfig });
+                        console.log('Pass ID已保存到localStorage (使用syncManager配置):', latestConfig.userPass);
                     } else {
-                        showStatus('用户标识生成失败或未获取到', 'error');
+                        console.error('syncManager配置中没有userPass:', latestConfig);
                     }
                 } catch (error) {
                     showStatus(`用户标识处理失败: ${error.message}`, 'error');

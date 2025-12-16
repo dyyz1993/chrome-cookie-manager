@@ -43,7 +43,6 @@ class SyncManager {
      * 服务器配置管理
      */
     async updateServerConfig(config) {
-        // 合并配置，确保保留已有的userPass，除非新配置明确提供了userPass
         this.config = { ...this.config, ...config };
         
         if (typeof chrome !== 'undefined' && chrome.storage) {
@@ -51,7 +50,7 @@ class SyncManager {
         }
         
         // 如果没有Pass ID，自动创建一个
-        if (this.config.serverUrl && !this.config.userPass) {
+        if (config.serverUrl && !this.config.userPass) {
             await this.createUserPass();
         }
     }
@@ -84,13 +83,19 @@ class SyncManager {
             
             if (response.ok) {
                 const data = await response.json();
-                this.config.userPass = data.pass;
+                console.log('服务器返回的Pass ID数据:', data);
+                // 修复：使用正确的字段名 pass_id 而不是 pass
+                const passId = data.pass_id;
+                this.config.userPass = passId;
+                console.log('设置到syncManager.config.userPass:', this.config.userPass);
                 
                 if (typeof chrome !== 'undefined' && chrome.storage) {
                     await chrome.storage.local.set({ syncConfig: this.config });
+                    console.log('Pass ID已保存到localStorage');
                 }
                 
-                return data.pass;
+                console.log('createUserPass即将返回:', passId);
+                return passId;
             }
             
             const errorText = await response.text();
@@ -135,7 +140,10 @@ class SyncManager {
         // 如果没有Pass ID，直接创建
         if (!this.config.userPass) {
             console.log('没有Pass ID，正在创建新的...');
-            return await this.createUserPass();
+            const newPassId = await this.createUserPass();
+            console.log('createUserPass返回的Pass ID:', newPassId);
+            console.log('this.config.userPass现在是:', this.config.userPass);
+            return newPassId;
         }
         
         // 验证现有Pass ID是否存在
