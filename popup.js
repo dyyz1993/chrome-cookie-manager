@@ -3,6 +3,38 @@
  * 处理popup界面的交互逻辑
  */
 
+/**
+ * 格式化相对时间显示
+ * 根据时间差智能显示格式：秒/分钟/具体时间
+ * @param {string} timestamp - ISO时间戳
+ * @returns {string} 格式化后的时间字符串
+ */
+function formatRelativeTime(timestamp) {
+    if (!timestamp) return '从未';
+    
+    const now = new Date();
+    const syncTime = new Date(timestamp);
+    const diffMs = now - syncTime;
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    
+    // 10分钟内显示相对时间
+    if (diffSeconds < 60) {
+        return `${diffSeconds}秒前`;
+    } else if (diffMinutes < 10) {
+        return `${diffMinutes}分钟前`;
+    }
+    // 超过10分钟显示具体时间
+    else {
+        return syncTime.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+}
+
 // 当DOM加载完成时执行
 document.addEventListener('DOMContentLoaded', function() {
     initializePopup();
@@ -22,6 +54,9 @@ function initializePopup() {
     
     // 绑定事件监听器
     bindEventListeners();
+    
+    // 启动动态时间更新定时器
+    startTimeUpdateTimer();
     
     // 自动加载LocalStorage数据（如果Storage标签页是活动的）
     setTimeout(() => {
@@ -341,6 +376,9 @@ function bindEventListeners() {
     
     // 加载同步配置
     loadSyncConfig();
+    
+    // 启动定时器，每秒更新最后同步时间显示
+    startTimeUpdateTimer();
     
     console.log('bindEventListeners 执行完成');
 }
@@ -1972,6 +2010,82 @@ async function refreshVersionHistory() {
 }
 
 /**
+ * 格式化相对时间显示
+ * 根据时间差智能显示格式：秒/分钟/具体时间
+ * @param {string} timestamp - ISO时间戳
+ * @returns {string} 格式化后的时间字符串
+ */
+function formatRelativeTime(timestamp) {
+    if (!timestamp) return '从未';
+    
+    const now = new Date();
+    const syncTime = new Date(timestamp);
+    const diffMs = now - syncTime;
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    // 10分钟内显示相对时间
+    if (diffSeconds < 60) {
+        return `${diffSeconds}秒前`;
+    } else if (diffMinutes < 10) {
+        return `${diffMinutes}分钟前`;
+    }
+    // 超过10分钟显示具体时间
+    else {
+        return syncTime.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+}
+
+/**
+ * 启动时间更新定时器
+ * 每秒更新一次最后同步时间显示
+ */
+function startTimeUpdateTimer() {
+    // 立即更新一次
+    updateLastSyncTimeDisplay();
+    
+    // 设置定时器，每秒更新一次
+    setInterval(updateLastSyncTimeDisplay, 1000);
+}
+
+/**
+ * 更新最后同步时间显示
+ * 从当前域名的配置中获取最后同步时间并更新显示
+ */
+async function updateLastSyncTimeDisplay() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) return;
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) return;
+        
+        const domain = urlInfo.domain;
+        
+        // 获取域名配置
+        const domainConfigs = await chrome.storage.local.get(['domainConfigs']);
+        const config = domainConfigs.domainConfigs?.[domain] || {};
+        
+        // 更新最后同步时间显示
+        const lastSyncElement = document.getElementById('lastSyncTime');
+        if (lastSyncElement) {
+            const relativeTime = formatRelativeTime(config.lastSyncTime);
+            lastSyncElement.textContent = relativeTime;
+        }
+    } catch (error) {
+        // 静默处理错误，避免频繁报错
+        console.debug('更新最后同步时间显示失败:', error);
+    }
+}
+
+/**
  * 更新同步状态显示
  */
 function updateSyncStatus(status, message) {
@@ -2012,8 +2126,8 @@ function updateSyncDirection(action, timestamp) {
         syncIcon.className = `sync-icon ${className}`;
         
         if (timestamp) {
-            const date = new Date(timestamp);
-            lastSyncTime.textContent = date.toLocaleString();
+            const relativeTime = formatRelativeTime(timestamp);
+            lastSyncTime.textContent = relativeTime;
         }
     }
 }
@@ -2038,12 +2152,8 @@ async function updateSyncStatusDisplay() {
         // 更新最后同步时间
         const lastSyncElement = document.getElementById('lastSyncTime');
         if (lastSyncElement) {
-            if (config.lastSyncTime) {
-                const date = new Date(config.lastSyncTime).toLocaleString();
-                lastSyncElement.textContent = `最后同步: ${date}`;
-            } else {
-                lastSyncElement.textContent = '最后同步: 从未';
-            }
+            const relativeTime = formatRelativeTime(config.lastSyncTime);
+            lastSyncElement.textContent = relativeTime;
         }
         
         // 更新数据来源
@@ -2569,3 +2679,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 100);
 });
+
+/**
+ * 启动动态时间更新定时器
+ * 每秒更新一次最后同步时间显示，确保时间显示是动态的
+ */
+function startTimeUpdateTimer() {
+    // 立即更新一次
+    updateLastSyncTimeDisplay();
+    
+    // 每秒更新一次时间显示
+    setInterval(() => {
+        updateLastSyncTimeDisplay();
+    }, 1000);
+}
+
+/**
+ * 更新最后同步时间显示
+ */
+async function updateLastSyncTimeDisplay() {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tabs[0]) return;
+        
+        const urlInfo = parseTabUrl(tabs[0]);
+        if (!urlInfo.isValid || urlInfo.isSpecialPage) return;
+        
+        const domain = urlInfo.domain;
+        
+        // 获取域名配置
+        const domainConfigs = await chrome.storage.local.get(['domainConfigs']);
+        const config = domainConfigs.domainConfigs?.[domain] || {};
+        
+        // 更新最后同步时间显示
+        const lastSyncElement = document.getElementById('lastSyncTime');
+        if (lastSyncElement) {
+            const relativeTime = formatRelativeTime(config.lastSyncTime);
+            lastSyncElement.textContent = relativeTime;
+        }
+    } catch (error) {
+        // 静默处理错误，避免频繁报错
+        console.debug('更新最后同步时间显示失败:', error);
+    }
+}
