@@ -792,9 +792,45 @@ def save_data_legacy(pass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@ns_data.route('/<string:pass_id>')
+class GetData(Resource):
+    @ns_data.doc('get_data')
+    @ns_data.marshal_with(data_model)
+    @ns_data.response(200, '数据获取成功')
+    @ns_data.response(400, '请求参数错误')
+    @ns_data.response(404, '数据未找到')
+    @ns_data.response(500, '服务器内部错误')
+    def get(self, pass_id):
+        """获取最新数据"""
+        try:
+            domain = request.args.get('domain')
+            if not domain:
+                return {'error': 'Missing domain parameter'}, 400
+            with get_db() as conn:
+                # 获取最新数据
+                data_entry = conn.execute('''
+                    SELECT id, data, created_at FROM data_entries
+                    WHERE pass_id = ? AND domain = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ''', (pass_id, domain)).fetchone()
+                
+                if not data_entry:
+                    return {'error': 'No data found'}, 404
+                
+                return {
+                    'data': data_entry['data'],
+                    'timestamp': data_entry['created_at'],
+                    'id': f'data_{data_entry["id"]}'
+                }
+        
+        except Exception as e:
+            return {'error': str(e)}, 500
+
+
 @app.route('/api/data/<pass_id>')
-def get_data(pass_id):
-    """获取最新数据"""
+def get_data_legacy(pass_id):
+    """获取最新数据（兼容旧接口）"""
     try:
         domain = request.args.get('domain')
         if not domain:
@@ -820,9 +856,48 @@ def get_data(pass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@ns_data.route('/<string:pass_id>/versions')
+class GetVersions(Resource):
+    @ns_data.doc('get_versions')
+    @ns_data.response(200, '版本列表获取成功')
+    @ns_data.response(400, '请求参数错误')
+    @ns_data.response(500, '服务器内部错误')
+    def get(self, pass_id):
+        """获取历史版本"""
+        try:
+            domain = request.args.get('domain')
+            if not domain:
+                return {'error': 'Missing domain parameter'}, 400
+                
+            limit = request.args.get('limit', 5, type=int)
+            limit = min(limit, MAX_VERSIONS)  # 限制最大返回数量
+            
+            with get_db() as conn:
+                versions = conn.execute('''
+                    SELECT id, created_at, size FROM data_entries
+                    WHERE pass_id = ? AND domain = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                ''', (pass_id, domain, limit)).fetchall()
+                
+                return {
+                    'versions': [
+                        {
+                            'id': f'data_{row["id"]}',
+                            'timestamp': row['created_at'],
+                            'size': row['size']
+                        }
+                        for row in versions
+                    ]
+                }
+        
+        except Exception as e:
+            return {'error': str(e)}, 500
+
+
 @app.route('/api/data/<pass_id>/versions')
-def get_versions(pass_id):
-    """获取历史版本"""
+def get_versions_legacy(pass_id):
+    """获取历史版本（兼容旧接口）"""
     try:
         domain = request.args.get('domain')
         if not domain:
@@ -853,9 +928,49 @@ def get_versions(pass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@ns_data.route('/<string:pass_id>')
+class DeleteData(Resource):
+    @ns_data.doc('delete_data')
+    @ns_data.response(200, '数据删除成功')
+    @ns_data.response(400, '请求参数错误')
+    @ns_data.response(500, '服务器内部错误')
+    def delete(self, pass_id):
+        """删除数据"""
+        try:
+            domain = request.args.get('domain')
+            if not domain:
+                return {'error': 'Missing domain parameter'}, 400
+                
+            version_id = request.args.get('version_id')
+            
+            with get_db() as conn:
+                if version_id:
+                    # 删除特定版本
+                    result = conn.execute('''
+                        DELETE FROM data_entries 
+                        WHERE pass_id = ? AND domain = ? AND id = ?
+                    ''', (pass_id, domain, version_id.replace('data_', '')))
+                else:
+                    # 删除所有版本
+                    result = conn.execute('''
+                        DELETE FROM data_entries 
+                        WHERE pass_id = ? AND domain = ?
+                    ''', (pass_id, domain))
+                
+                conn.commit()
+                
+                return {
+                    'success': True,
+                    'deleted_count': result.rowcount
+                }
+        
+        except Exception as e:
+            return {'error': str(e)}, 500
+
+
 @app.route('/api/data/<pass_id>', methods=['DELETE'])
-def delete_data(pass_id):
-    """删除数据"""
+def delete_data_legacy(pass_id):
+    """删除数据（兼容旧接口）"""
     try:
         domain = request.args.get('domain')
         if not domain:
@@ -887,167 +1002,209 @@ def delete_data(pass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/quick/<pass_id>')
-def quick_access(pass_id):
-    """快捷访问 - 支持HTML和JSON格式，服务端解密"""
-    try:
-        domain = request.args.get('domain')
-        if not domain:
-            return jsonify({'error': 'Missing domain parameter'}), 400
+# 快速同步相关的命名空间
+ns_quick = api.namespace('quick', description='快速同步操作')
+
+@ns_quick.route('/<string:pass_id>')
+class QuickAccess(Resource):
+    @ns_quick.doc('quick_access')
+    @ns_quick.param('domain', '域名', required=True)
+    @ns_quick.param('format', '返回格式 (json/html)', default='json')
+    @ns_quick.param('key', '解密密钥（可选）')
+    @ns_quick.response(200, '成功获取数据')
+    @ns_quick.response(400, '请求参数错误')
+    @ns_quick.response(404, '未找到数据')
+    @ns_quick.response(500, '服务器内部错误')
+    def get(self, pass_id):
+        """快捷访问 - 支持HTML和JSON格式，服务端解密"""
+        try:
+            domain = request.args.get('domain')
+            if not domain:
+                return jsonify({'error': 'Missing domain parameter'}), 400
+                
+            format_type = request.args.get('format', 'json')
+            decrypt_key = request.args.get('key', '')
             
-        format_type = request.args.get('format', 'json')
-        decrypt_key = request.args.get('key', '')
-        
-        with get_db() as conn:
-            data_entry = conn.execute('''
-                SELECT data, created_at FROM data_entries
-                WHERE pass_id = ? AND domain = ?
-                ORDER BY created_at DESC
-                LIMIT 1
-            ''', (pass_id, domain)).fetchone()
-            
-            if not data_entry:
-                if format_type == 'html':
-                    return '<h1>No data found</h1>', 404
-                return jsonify({'error': 'No data found'}), 404
-            
-            encrypted_data = data_entry['data']
-            timestamp = data_entry['created_at']
-            
-            # 如果提供了解密密钥，在服务端解密
-            decrypted_data = None
-            if decrypt_key:
-                try:
-                    decrypted_data = server_decrypt(encrypted_data, decrypt_key)
-                    print(f"解密成功，数据类型: {type(decrypted_data)}")
-                    
-                    # 确保解密后的数据是字典类型
-                    if isinstance(decrypted_data, str):
-                        print(f"解密结果是字符串，尝试解析JSON: {decrypted_data[:100]}...")
-                        decrypted_data = json.loads(decrypted_data)
-                    elif not isinstance(decrypted_data, dict):
-                        print(f"解密结果不是字典类型: {type(decrypted_data)}")
-                        decrypted_data = None
+            with get_db() as conn:
+                data_entry = conn.execute('''
+                    SELECT data, created_at FROM data_entries
+                    WHERE pass_id = ? AND domain = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ''', (pass_id, domain)).fetchone()
+                
+                if not data_entry:
+                    if format_type == 'html':
+                        return '<h1>No data found</h1>', 404
+                    return jsonify({'error': 'No data found'}), 404
+                
+                encrypted_data = data_entry['data']
+                timestamp = data_entry['created_at']
+                
+                # 如果提供了解密密钥，在服务端解密
+                decrypted_data = None
+                if decrypt_key:
+                    try:
+                        decrypted_data = server_decrypt(encrypted_data, decrypt_key)
+                        print(f"解密成功，数据类型: {type(decrypted_data)}")
                         
-                except Exception as e:
-                    print(f"服务端解密失败: {e}")
-                    print(f"加密数据预览: {encrypted_data[:100]}...")
-                    print(f"解密密钥: {decrypt_key}")
-                    decrypted_data = None
-            
-            # 根据格式返回不同响应
-            if format_type == 'json':
-                if decrypted_data:
-                    # 返回解密后的JSON数据
-                    return jsonify({
-                        'success': True,
-                        'domain': domain,
-                        'pass_id': pass_id,
-                        'timestamp': timestamp,
-                        'decrypted': True,
-                        'data': decrypted_data
-                    })
+                        # 确保解密后的数据是字典类型
+                        if isinstance(decrypted_data, str):
+                            print(f"解密结果是字符串，尝试解析JSON: {decrypted_data[:100]}...")
+                            decrypted_data = json.loads(decrypted_data)
+                        elif not isinstance(decrypted_data, dict):
+                            print(f"解密结果不是字典类型: {type(decrypted_data)}")
+                            decrypted_data = None
+                            
+                    except Exception as e:
+                        print(f"服务端解密失败: {e}")
+                        print(f"加密数据预览: {encrypted_data[:100]}...")
+                        print(f"解密密钥: {decrypt_key}")
+                        decrypted_data = None
+                
+                # 根据格式返回不同响应
+                if format_type == 'json':
+                    if decrypted_data:
+                        # 返回解密后的JSON数据
+                        return jsonify({
+                            'success': True,
+                            'domain': domain,
+                            'pass_id': pass_id,
+                            'timestamp': timestamp,
+                            'decrypted': True,
+                            'data': decrypted_data
+                        })
+                    else:
+                        # 返回加密数据
+                        return jsonify({
+                            'success': True,
+                            'domain': domain,
+                            'pass_id': pass_id,
+                            'timestamp': timestamp,
+                            'decrypted': False,
+                            'encrypted_data': encrypted_data,
+                            'message': 'No decryption key provided or decryption failed'
+                        })
                 else:
-                    # 返回加密数据
-                    return jsonify({
-                        'success': True,
-                        'domain': domain,
-                        'pass_id': pass_id,
-                        'timestamp': timestamp,
-                        'decrypted': False,
-                        'encrypted_data': encrypted_data,
-                        'message': 'No decryption key provided or decryption failed'
-                    })
-            else:
-                # HTML格式 - 如果有解密数据，直接显示；否则显示加密数据和客户端解密界面
-                if decrypted_data:
-                    return render_decrypted_html(domain, pass_id, timestamp, decrypted_data)
-                else:
-                    return render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_key)
-    
-    except Exception as e:
-        if format_type == 'html':
-            return f'<h1>Error: {str(e)}</h1>', 500
-        return jsonify({'error': str(e)}), 500
+                    # HTML格式 - 如果有解密数据，直接显示；否则显示加密数据和客户端解密界面
+                    if decrypted_data:
+                        return render_decrypted_html(domain, pass_id, timestamp, decrypted_data)
+                    else:
+                        return render_encrypted_html(domain, pass_id, timestamp, encrypted_data, decrypt_key)
+        
+        except Exception as e:
+            if format_type == 'html':
+                return f'<h1>Error: {str(e)}</h1>', 500
+            return jsonify({'error': str(e)}), 500
 
+# 保持原有端点的向后兼容性
+@app.route('/api/quick/<pass_id>')
+def quick_access_legacy(pass_id):
+    """快捷访问 - 支持HTML和JSON格式，服务端解密（向后兼容）"""
+    return QuickAccess().get(pass_id)
+
+# 统计相关的命名空间
+ns_stats = api.namespace('stats', description='统计信息')
+
+@ns_stats.route('/<string:pass_id>')
+class GetPassStats(Resource):
+    @ns_stats.doc('get_pass_stats')
+    @ns_stats.response(200, '成功获取统计信息')
+    @ns_stats.response(404, 'Pass不存在')
+    @ns_stats.response(500, '服务器内部错误')
+    def get(self, pass_id):
+        """获取Pass统计信息"""
+        try:
+            with get_db() as conn:
+                # 检查Pass是否存在
+                pass_info = conn.execute(
+                    'SELECT created_at FROM passes WHERE pass_id = ?',
+                    (pass_id,)
+                ).fetchone()
+                
+                if not pass_info:
+                    return jsonify({'error': 'Pass not found'}), 404
+                
+                # 获取统计信息
+                stats = conn.execute('''
+                    SELECT 
+                        COUNT(DISTINCT domain) as domain_count,
+                        SUM(size) as total_size,
+                        MAX(created_at) as last_activity
+                    FROM data_entries 
+                    WHERE pass_id = ?
+                ''', (pass_id,)).fetchone()
+                
+                # 获取域名详情
+                domains = conn.execute('''
+                    SELECT 
+                        domain,
+                        COUNT(*) as version_count,
+                        SUM(size) as size,
+                        MAX(created_at) as last_modified
+                    FROM data_entries 
+                    WHERE pass_id = ?
+                    GROUP BY domain
+                ''', (pass_id,)).fetchall()
+                
+                return jsonify({
+                    'pass': pass_id,
+                    'domain_count': stats['domain_count'] or 0,
+                    'total_size': stats['total_size'] or 0,
+                    'last_activity': stats['last_activity'],
+                    'domains': [
+                        {
+                            'domain': row['domain'],
+                            'version_count': row['version_count'],
+                            'size': row['size'],
+                            'last_modified': row['last_modified']
+                        }
+                        for row in domains
+                    ]
+                })
+        
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+# 保持原有端点的向后兼容性
 @app.route('/api/stats/<pass_id>')
-def get_pass_stats(pass_id):
-    """获取Pass统计信息"""
-    try:
-        with get_db() as conn:
-            # 检查Pass是否存在
-            pass_info = conn.execute(
-                'SELECT created_at FROM passes WHERE pass_id = ?',
-                (pass_id,)
-            ).fetchone()
-            
-            if not pass_info:
-                return jsonify({'error': 'Pass not found'}), 404
-            
-            # 获取统计信息
-            stats = conn.execute('''
-                SELECT 
-                    COUNT(DISTINCT domain) as domain_count,
-                    SUM(size) as total_size,
-                    MAX(created_at) as last_activity
-                FROM data_entries 
-                WHERE pass_id = ?
-            ''', (pass_id,)).fetchone()
-            
-            # 获取域名详情
-            domains = conn.execute('''
-                SELECT 
-                    domain,
-                    COUNT(*) as version_count,
-                    SUM(size) as size,
-                    MAX(created_at) as last_modified
-                FROM data_entries 
-                WHERE pass_id = ?
-                GROUP BY domain
-            ''', (pass_id,)).fetchall()
-            
-            return jsonify({
-                'pass': pass_id,
-                'domain_count': stats['domain_count'] or 0,
-                'total_size': stats['total_size'] or 0,
-                'last_activity': stats['last_activity'],
-                'domains': [
-                    {
-                        'domain': row['domain'],
-                        'version_count': row['version_count'],
-                        'size': row['size'],
-                        'last_modified': row['last_modified']
-                    }
-                    for row in domains
-                ]
-            })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def get_pass_stats_legacy(pass_id):
+    """获取Pass统计信息（向后兼容）"""
+    return GetPassStats().get(pass_id)
 
+@ns_stats.route('/server')
+class GetServerStats(Resource):
+    @ns_stats.doc('get_server_stats')
+    @ns_stats.response(200, '成功获取服务器统计信息')
+    @ns_stats.response(500, '服务器内部错误')
+    def get(self):
+        """获取服务器统计信息"""
+        try:
+            with get_db() as conn:
+                stats = conn.execute('''
+                    SELECT 
+                        (SELECT COUNT(*) FROM passes) as total_passes,
+                        (SELECT COUNT(DISTINCT domain) FROM data_entries) as total_domains,
+                        (SELECT SUM(size) FROM data_entries) as total_size
+                ''').fetchone()
+                
+                return jsonify({
+                    'total_passes': stats['total_passes'] or 0,
+                    'total_domains': stats['total_domains'] or 0,
+                    'total_size_bytes': stats['total_size'] or 0,
+                    'total_size_mb': round((stats['total_size'] or 0) / 1024 / 1024, 2),
+                    'max_data_size_mb': round(MAX_DATA_SIZE / 1024 / 1024, 2),
+                    'max_versions_per_domain': MAX_VERSIONS
+                })
+        
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+# 保持原有端点的向后兼容性
 @app.route('/api/stats/server')
-def get_server_stats():
-    """获取服务器统计信息"""
-    try:
-        with get_db() as conn:
-            stats = conn.execute('''
-                SELECT 
-                    (SELECT COUNT(*) FROM passes) as total_passes,
-                    (SELECT COUNT(DISTINCT domain) FROM data_entries) as total_domains,
-                    (SELECT SUM(size) FROM data_entries) as total_size
-            ''').fetchone()
-            
-            return jsonify({
-                'total_passes': stats['total_passes'] or 0,
-                'total_domains': stats['total_domains'] or 0,
-                'total_size_bytes': stats['total_size'] or 0,
-                'total_size_mb': round((stats['total_size'] or 0) / 1024 / 1024, 2),
-                'max_data_size_mb': round(MAX_DATA_SIZE / 1024 / 1024, 2),
-                'max_versions_per_domain': MAX_VERSIONS
-            })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def get_server_stats_legacy():
+    """获取服务器统计信息（向后兼容）"""
+    return GetServerStats().get()
 
 # ==================== 管理后台 ====================
 
@@ -1406,100 +1563,130 @@ def render_admin_login():
     
     return render_template_string(html_template, attempts_left=attempts_left)
 
+# 管理员相关的命名空间
+ns_admin = api.namespace('admin', description='管理员操作')
+
+@ns_admin.route('/passes')
+class GetAllPasses(Resource):
+    @ns_admin.doc('get_all_passes')
+    @ns_admin.response(200, '成功获取Pass列表')
+    @ns_admin.response(401, '未授权访问')
+    @ns_admin.response(403, '权限不足')
+    @ns_admin.response(500, '服务器内部错误')
+    @require_admin_auth()
+    def get(self):
+        """获取所有Pass列表（管理后台用）"""
+        try:
+            with get_db() as conn:
+                # 获取所有Pass及其统计信息
+                passes = conn.execute('''
+                    SELECT 
+                        p.pass_id,
+                        p.created_at,
+                        COUNT(DISTINCT d.domain) as domain_count,
+                        SUM(d.size) as total_size,
+                        MAX(d.created_at) as last_activity
+                    FROM passes p
+                    LEFT JOIN data_entries d ON p.pass_id = d.pass_id
+                    GROUP BY p.pass_id, p.created_at
+                    ORDER BY p.created_at DESC
+                ''').fetchall()
+                
+                result = []
+                for pass_row in passes:
+                    # 获取该Pass的域名列表
+                    domains = conn.execute('''
+                        SELECT 
+                            domain,
+                            COUNT(*) as version_count,
+                            SUM(size) as size,
+                            MAX(created_at) as last_modified
+                        FROM data_entries 
+                        WHERE pass_id = ?
+                        GROUP BY domain
+                        ORDER BY last_modified DESC
+                    ''', (pass_row['pass_id'],)).fetchall()
+                    
+                    result.append({
+                        'pass_id': pass_row['pass_id'],
+                        'created_at': pass_row['created_at'],
+                        'domain_count': pass_row['domain_count'] or 0,
+                        'total_size': pass_row['total_size'] or 0,
+                        'last_activity': pass_row['last_activity'],
+                        'domains': [
+                            {
+                                'domain': domain['domain'],
+                                'version_count': domain['version_count'],
+                                'size': domain['size'],
+                                'last_modified': domain['last_modified']
+                            }
+                            for domain in domains
+                        ]
+                    })
+                
+                return jsonify(result)
+        
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+# 保持原有端点的向后兼容性
 @app.route('/api/admin/passes')
 @require_admin_auth()
-def get_all_passes():
-    """获取所有Pass列表（管理后台用）"""
-    try:
-        with get_db() as conn:
-            # 获取所有Pass及其统计信息
-            passes = conn.execute('''
-                SELECT 
-                    p.pass_id,
-                    p.created_at,
-                    COUNT(DISTINCT d.domain) as domain_count,
-                    SUM(d.size) as total_size,
-                    MAX(d.created_at) as last_activity
-                FROM passes p
-                LEFT JOIN data_entries d ON p.pass_id = d.pass_id
-                GROUP BY p.pass_id, p.created_at
-                ORDER BY p.created_at DESC
-            ''').fetchall()
-            
-            result = []
-            for pass_row in passes:
-                # 获取该Pass的域名列表
-                domains = conn.execute('''
-                    SELECT 
-                        domain,
-                        COUNT(*) as version_count,
-                        SUM(size) as size,
-                        MAX(created_at) as last_modified
-                    FROM data_entries 
-                    WHERE pass_id = ?
-                    GROUP BY domain
-                    ORDER BY last_modified DESC
-                ''', (pass_row['pass_id'],)).fetchall()
-                
-                result.append({
-                    'pass_id': pass_row['pass_id'],
-                    'created_at': pass_row['created_at'],
-                    'domain_count': pass_row['domain_count'] or 0,
-                    'total_size': pass_row['total_size'] or 0,
-                    'last_activity': pass_row['last_activity'],
-                    'domains': [
-                        {
-                            'domain': domain['domain'],
-                            'version_count': domain['version_count'],
-                            'size': domain['size'],
-                            'last_modified': domain['last_modified']
-                        }
-                        for domain in domains
-                    ]
-                })
-            
-            return jsonify(result)
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def get_all_passes_legacy():
+    """获取所有Pass列表（管理后台用）（向后兼容）"""
+    return GetAllPasses().get()
 
+@ns_admin.route('/passes/<string:pass_id>')
+class DeletePassAdmin(Resource):
+    @ns_admin.doc('delete_pass_admin')
+    @ns_admin.response(200, '成功删除Pass')
+    @ns_admin.response(401, '未授权访问')
+    @ns_admin.response(403, '权限不足')
+    @ns_admin.response(404, 'Pass不存在')
+    @ns_admin.response(500, '服务器内部错误')
+    @require_admin_auth()
+    def delete(self, pass_id):
+        """删除Pass及其所有数据（管理后台用）"""
+        try:
+            with get_db() as conn:
+                # 检查Pass是否存在
+                pass_exists = conn.execute(
+                    'SELECT 1 FROM passes WHERE pass_id = ?',
+                    (pass_id,)
+                ).fetchone()
+                
+                if not pass_exists:
+                    return jsonify({'error': 'Pass not found'}), 404
+                
+                # 删除所有相关数据
+                data_result = conn.execute(
+                    'DELETE FROM data_entries WHERE pass_id = ?',
+                    (pass_id,)
+                )
+                
+                # 删除Pass记录
+                pass_result = conn.execute(
+                    'DELETE FROM passes WHERE pass_id = ?',
+                    (pass_id,)
+                )
+                
+                conn.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'deleted_data_entries': data_result.rowcount,
+                    'deleted_pass': pass_result.rowcount > 0
+                })
+        
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+# 保持原有端点的向后兼容性
 @app.route('/api/admin/passes/<pass_id>', methods=['DELETE'])
 @require_admin_auth()
-def delete_pass_admin(pass_id):
-    """删除Pass及其所有数据（管理后台用）"""
-    try:
-        with get_db() as conn:
-            # 检查Pass是否存在
-            pass_exists = conn.execute(
-                'SELECT 1 FROM passes WHERE pass_id = ?',
-                (pass_id,)
-            ).fetchone()
-            
-            if not pass_exists:
-                return jsonify({'error': 'Pass not found'}), 404
-            
-            # 删除所有相关数据
-            data_result = conn.execute(
-                'DELETE FROM data_entries WHERE pass_id = ?',
-                (pass_id,)
-            )
-            
-            # 删除Pass记录
-            pass_result = conn.execute(
-                'DELETE FROM passes WHERE pass_id = ?',
-                (pass_id,)
-            )
-            
-            conn.commit()
-            
-            return jsonify({
-                'success': True,
-                'deleted_data_entries': data_result.rowcount,
-                'deleted_pass': pass_result.rowcount > 0
-            })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def delete_pass_admin_legacy(pass_id):
+    """删除Pass及其所有数据（管理后台用）（向后兼容）"""
+    return DeletePassAdmin().delete(pass_id)
 
 # ==================== 错误处理 ====================
 
