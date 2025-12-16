@@ -6,6 +6,7 @@ Cookie Manager 开放式服务器
 
 from flask import Flask, request, jsonify, render_template_string, render_template, session, redirect, url_for
 from flask_cors import CORS
+from flask_restx import Api, Resource, fields, Namespace
 import sqlite3
 import secrets
 import string
@@ -19,6 +20,16 @@ from contextlib import contextmanager
 
 app = Flask(__name__)
 CORS(app)
+
+# 初始化 Flask-RESTX API
+api = Api(
+    app,
+    version='1.0',
+    title='Cookie Manager API',
+    description='Cookie Manager 开放式服务器 API 文档',
+    doc='/swagger/',
+    prefix='/api'
+)
 
 # 配置
 DATABASE_PATH = os.environ.get('DATABASE_PATH', 'database.db')
@@ -60,6 +71,41 @@ def init_database():
         conn.execute('CREATE INDEX IF NOT EXISTS idx_pass_domain ON data_entries(pass_id, domain)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_created_at ON data_entries(created_at DESC)')
         conn.commit()
+
+# ==================== API 文档配置 ====================
+
+# 创建命名空间
+ns_pass = Namespace('pass', description='Pass ID 管理相关接口')
+ns_data = Namespace('data', description='数据存储相关接口')
+ns_admin = Namespace('admin', description='管理员接口')
+
+# 定义数据模型
+pass_model = api.model('Pass', {
+    'pass_id': fields.String(description='Pass ID'),
+    'created_at': fields.String(description='创建时间'),
+    'domains': fields.List(fields.String(), description='关联的域名列表')
+})
+
+data_model = api.model('Data', {
+    'domain': fields.String(required=True, description='域名'),
+    'data': fields.String(required=True, description='加密的数据'),
+    'size': fields.Integer(description='数据大小'),
+    'created_at': fields.String(description='创建时间')
+})
+
+create_pass_model = api.model('CreatePass', {
+    'domain': fields.String(description='关联的域名（可选）')
+})
+
+store_data_model = api.model('StoreData', {
+    'data': fields.String(required=True, description='要存储的数据'),
+    'domain': fields.String(required=True, description='域名')
+})
+
+# 注册命名空间
+api.add_namespace(ns_pass)
+api.add_namespace(ns_data)
+api.add_namespace(ns_admin)
 
 # ==================== 安全功能 ====================
 
@@ -516,9 +562,43 @@ def health():
         'version': '1.0.0'
     })
 
+@ns_pass.route('/create')
+class CreatePass(Resource):
+    @ns_pass.doc('create_pass')
+    @ns_pass.expect(create_pass_model)
+    @ns_pass.marshal_with(pass_model)
+    @ns_pass.response(201, 'Pass ID 创建成功')
+    @ns_pass.response(400, '请求参数错误')
+    @ns_pass.response(500, '服务器内部错误')
+    def post(self):
+        """创建新的Pass ID"""
+        try:
+            data = request.get_json() or {}
+            domain = data.get('domain', '')
+            
+            # 生成Pass ID
+            pass_id = generate_pass()
+            
+            # 存储到数据库
+            with get_db() as conn:
+                conn.execute(
+                    'INSERT INTO passes (pass_id) VALUES (?)',
+                    (pass_id,)
+                )
+                conn.commit()
+            
+            return {
+                'pass_id': pass_id,
+                'created_at': datetime.utcnow().isoformat() + 'Z'
+            }, 201
+        
+        except Exception as e:
+            return {'error': str(e)}, 500
+
+
 @app.route('/api/pass/create', methods=['POST'])
-def create_pass():
-    """创建新的Pass ID"""
+def create_pass_legacy():
+    """创建新的Pass ID（兼容旧接口）"""
     try:
         data = request.get_json() or {}
         domain = data.get('domain', '')
@@ -542,9 +622,45 @@ def create_pass():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@ns_pass.route('/<string:pass_id>/check')
+class CheckPass(Resource):
+    @ns_pass.doc('check_pass')
+    @ns_pass.marshal_with(pass_model)
+    @ns_pass.response(200, 'Pass 检查成功')
+    @ns_pass.response(404, 'Pass 不存在')
+    @ns_pass.response(500, '服务器内部错误')
+    def get(self, pass_id):
+        """验证Pass是否存在"""
+        try:
+            with get_db() as conn:
+                # 检查Pass是否存在
+                pass_info = conn.execute(
+                    'SELECT created_at FROM passes WHERE pass_id = ?',
+                    (pass_id,)
+                ).fetchone()
+                
+                if not pass_info:
+                    return {'exists': False}, 404
+                
+                # 获取该Pass下的所有域名
+                domains = conn.execute('''
+                    SELECT DISTINCT domain FROM data_entries WHERE pass_id = ?
+                ''', (pass_id,)).fetchall()
+                
+                return {
+                    'pass_id': pass_id,
+                    'exists': True,
+                    'created_at': pass_info['created_at'],
+                    'domains': [row['domain'] for row in domains]
+                }
+        
+        except Exception as e:
+            return {'error': str(e)}, 500
+
+
 @app.route('/api/pass/<pass_id>/check')
-def check_pass(pass_id):
-    """验证Pass是否存在"""
+def check_pass_legacy(pass_id):
+    """验证Pass是否存在（兼容旧接口）"""
     try:
         with get_db() as conn:
             # 检查Pass是否存在
@@ -570,9 +686,66 @@ def check_pass(pass_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@ns_data.route('/<string:pass_id>')
+class SaveData(Resource):
+    @ns_data.doc('save_data')
+    @ns_data.expect(store_data_model)
+    @ns_data.response(201, '数据保存成功')
+    @ns_data.response(400, '请求参数错误')
+    @ns_data.response(404, 'Pass ID 不存在')
+    @ns_data.response(500, '服务器内部错误')
+    def post(self, pass_id):
+        """保存数据"""
+        try:
+            domain = request.args.get('domain')
+            if not domain:
+                return {'error': 'Missing domain parameter'}, 400
+                
+            data = request.get_json()
+            if not data or 'data' not in data:
+                return {'error': 'Missing data field'}, 400
+            
+            encrypted_data = data['data']
+            
+            # 检查数据大小
+            data_size = len(encrypted_data.encode('utf-8'))
+            if data_size > MAX_DATA_SIZE:
+                return {'error': f'Data too large. Max size: {MAX_DATA_SIZE} bytes'}, 400
+            
+            # 验证Pass是否存在
+            with get_db() as conn:
+                pass_exists = conn.execute(
+                    'SELECT 1 FROM passes WHERE pass_id = ?',
+                    (pass_id,)
+                ).fetchone()
+                
+                if not pass_exists:
+                    return {'error': 'Invalid pass ID'}, 404
+                
+                # 保存数据
+                cursor = conn.execute('''
+                    INSERT INTO data_entries (pass_id, domain, data, size)
+                    VALUES (?, ?, ?, ?)
+                ''', (pass_id, domain, encrypted_data, data_size))
+                
+                conn.commit()
+                
+                # 清理旧版本
+                cleanup_old_versions(pass_id, domain)
+                
+                return {
+                    'success': True,
+                    'id': f'data_{cursor.lastrowid}',
+                    'timestamp': datetime.utcnow().isoformat() + 'Z'
+                }, 201
+        
+        except Exception as e:
+            return {'error': str(e)}, 500
+
+
 @app.route('/api/data/<pass_id>', methods=['POST'])
-def save_data(pass_id):
-    """保存数据"""
+def save_data_legacy(pass_id):
+    """保存数据（兼容旧接口）"""
     try:
         domain = request.args.get('domain')
         if not domain:
@@ -1089,6 +1262,13 @@ def render_admin_login():
                 <input type="password" id="password" name="password" required autocomplete="current-password">
             </div>
             
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label style="display: flex; align-items: center; font-weight: normal; cursor: pointer;">
+                    <input type="checkbox" id="rememberPassword" name="rememberPassword" style="width: auto; margin-right: 8px;">
+                    记住密码（本地存储）
+                </label>
+            </div>
+            
             <button type="submit" class="login-btn" id="loginBtn">登录</button>
         </form>
         
@@ -1102,12 +1282,46 @@ def render_admin_login():
     </div>
     
     <script>
+        // 密码本地存储管理
+        const PasswordManager = {
+            // 保存密码到 localStorage
+            savePassword: function(password) {
+                try {
+                    localStorage.setItem('admin_password', password);
+                    console.log('密码已保存到本地存储');
+                } catch (error) {
+                    console.warn('无法保存密码到本地存储:', error);
+                }
+            },
+            
+            // 从 localStorage 获取密码
+            getPassword: function() {
+                try {
+                    return localStorage.getItem('admin_password');
+                } catch (error) {
+                    console.warn('无法从本地存储获取密码:', error);
+                    return null;
+                }
+            },
+            
+            // 清除保存的密码
+            clearPassword: function() {
+                try {
+                    localStorage.removeItem('admin_password');
+                    console.log('已清除本地存储的密码');
+                } catch (error) {
+                    console.warn('无法清除本地存储的密码:', error);
+                }
+            }
+        };
+        
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const password = document.getElementById('password').value;
             const loginBtn = document.getElementById('loginBtn');
             const messageDiv = document.getElementById('message');
+            const rememberCheckbox = document.getElementById('rememberPassword');
             
             loginBtn.disabled = true;
             loginBtn.textContent = '登录中...';
@@ -1124,6 +1338,11 @@ def render_admin_login():
                 const result = await response.json();
                 
                 if (result.success) {
+                    // 如果勾选了记住密码，则保存到本地存储
+                    if (rememberCheckbox && rememberCheckbox.checked) {
+                        PasswordManager.savePassword(password);
+                    }
+                    
                     messageDiv.className = 'message success';
                     messageDiv.textContent = result.message;
                     messageDiv.style.display = 'block';
@@ -1135,6 +1354,9 @@ def render_admin_login():
                     messageDiv.className = 'message error';
                     messageDiv.textContent = result.error;
                     messageDiv.style.display = 'block';
+                    
+                    // 登录失败时清除保存的密码
+                    PasswordManager.clearPassword();
                     
                     if (result.blocked) {
                         loginBtn.textContent = '已被阻止';
@@ -1158,8 +1380,25 @@ def render_admin_login():
             }
         });
         
-        // 自动聚焦密码输入框
-        document.getElementById('password').focus();
+        // 页面加载时的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            const passwordInput = document.getElementById('password');
+            const rememberCheckbox = document.getElementById('rememberPassword');
+            
+            // 尝试从本地存储恢复密码
+            const savedPassword = PasswordManager.getPassword();
+            if (savedPassword) {
+                passwordInput.value = savedPassword;
+                if (rememberCheckbox) {
+                    rememberCheckbox.checked = true;
+                }
+                console.log('已从本地存储恢复密码');
+            }
+            
+            // 自动聚焦密码输入框
+            passwordInput.focus();
+            passwordInput.select();
+        });
     </script>
 </body>
 </html>
